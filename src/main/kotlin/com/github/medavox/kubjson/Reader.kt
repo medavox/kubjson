@@ -88,7 +88,7 @@ class Reader(private val inputStream:InputStream, private val listener: ReaderLi
         }
     }
 
-    private fun readLength():Long {
+    internal fun readLength():Long {
         val oneByte = ByteArray(1)
         inputStream.read(oneByte)
         return when(readChar(oneByte[0])) {
@@ -112,44 +112,44 @@ class Reader(private val inputStream:InputStream, private val listener: ReaderLi
         }
     }
 
-    private fun readInt8(b:Byte):Byte{
+    internal fun readInt8(b:Byte):Byte{
         return ByteBuffer.wrap(byteArrayOf(b)).order(ByteOrder.BIG_ENDIAN).get()
     }
 
     @UseExperimental(ExperimentalUnsignedTypes::class)
-    private fun readUint8(b:Byte):UByte {
+    internal fun readUint8(b:Byte):UByte {
         return readInt8(b).toUByte()
     }
 
-    private fun readInt16(b:ByteArray):Short {
+    internal fun readInt16(b:ByteArray):Short {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getShort()
     }
 
-    private fun readInt32(b:ByteArray):Int {
+    internal fun readInt32(b:ByteArray):Int {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getInt()
     }
 
-    private fun readInt64(b:ByteArray):Long {
+    internal fun readInt64(b:ByteArray):Long {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getLong()
     }
 
-    private fun readFloat32(b:ByteArray):Float {
+    internal fun readFloat32(b:ByteArray):Float {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getFloat()
     }
 
-    private fun readFloat64(b:ByteArray):Double {
+    internal fun readFloat64(b:ByteArray):Double {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getDouble()
     }
 
-    private fun readChar(b:Byte):Char {
+    internal fun readChar(b:Byte):Char {
         return readInt8(b).toChar()
     }
 
-    private fun readString(b:ByteArray):String {
+    internal fun readString(b:ByteArray):String {
         return b.toString(Charsets.UTF_8)
     }
 
-    private fun readHighPrecisionNumber(b:ByteArray):BigDecimal {
+    internal fun readHighPrecisionNumber(b:ByteArray):BigDecimal {
         return BigDecimal(readString(b))
     }
 }

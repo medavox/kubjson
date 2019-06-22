@@ -6,7 +6,7 @@ import java.math.BigDecimal
 import java.nio.ByteBuffer
 import kotlin.IllegalArgumentException
 
-private fun ByteArray.toHexString() = joinToString("") { "%02x".format(it) }
+internal fun ByteArray.toHexString() = joinToString("") { "%02x".format(it) }
 
 fun main() {
     //tust('h')
@@ -18,7 +18,7 @@ fun main() {
     writer.writeUint8(256)
 }
 
-private fun tust(c:Char) {
+internal fun tust(c:Char) {
     with(System.out) {
         //println("char size in bytes:" + Char.SIZE_BYTES)
         print("bytes of '$c': ")
@@ -37,10 +37,11 @@ fun hexOf(owt:Short){
     }
 }
 
-/**NOTE: both UBJSON and Java (and by extension Kotlin) are Big-Endian, so no endianness conversion is necessary*/
+/**Basic low-level converter from JVM types to their UBJSON equivalents.
+ * NOTE: both UBJSON and Java (and by extension Kotlin) are Big-Endian, so no endianness conversion is necessary*/
 class Writer(outputStream:OutputStream) {
 
-    private fun writeLength(length:Long):ByteArray {
+    internal fun writeLength(length:Long):ByteArray {
         if(length < Byte.MAX_VALUE) {
             return writeInt8(length.toByte())
         }else if(length < Short.MAX_VALUE) {
@@ -52,15 +53,15 @@ class Writer(outputStream:OutputStream) {
         }
     }
 
-    private fun writeNull(): ByteArray {
+    internal fun writeNull(): ByteArray {
         return byteArrayOf('Z'.toByte())
     }
 
-    private fun writeNoOp(): ByteArray {
+    internal fun writeNoOp(): ByteArray {
         return byteArrayOf('N'.toByte())
     }
 
-    private fun writeBoolean(boolean:Boolean):ByteArray {
+    internal fun writeBoolean(boolean:Boolean):ByteArray {
         if(boolean == true) {
             return byteArrayOf('T'.toByte())
         }else {
@@ -68,12 +69,12 @@ class Writer(outputStream:OutputStream) {
         }
     }
 
-    private fun writeInt8(int8:Byte):ByteArray {
+    internal fun writeInt8(int8:Byte):ByteArray {
         return byteArrayOf(int8)
     }
 
     @UseExperimental(ExperimentalUnsignedTypes::class)
-    private fun writeUint8(uint8:UByte):ByteArray {
+    internal fun writeUint8(uint8:UByte):ByteArray {
         return byteArrayOf(uint8.toByte())
     }
     @Throws(IllegalArgumentException::class)
@@ -84,19 +85,19 @@ class Writer(outputStream:OutputStream) {
         }
         return byteArrayOf(ByteBuffer.allocate(Short.SIZE_BYTES).putShort(uint8).array()[1])
     }
-    private fun writeInt16(int16:Short):ByteArray {
+    internal fun writeInt16(int16:Short):ByteArray {
         return ByteBuffer.allocate(Short.SIZE_BYTES).putShort(int16).array()
     }
-    private fun writeInt32(int32:Int):ByteArray {
+    internal fun writeInt32(int32:Int):ByteArray {
         return ByteBuffer.allocate(Int.SIZE_BYTES).putInt(int32).array()
     }
-    private fun writeInt64(int64:Long):ByteArray {
+    internal fun writeInt64(int64:Long):ByteArray {
         return ByteBuffer.allocate(Long.SIZE_BYTES).putLong(int64).array()
     }
-    private fun writeFloat32(float32:Float):ByteArray {
+    internal fun writeFloat32(float32:Float):ByteArray {
         return ByteBuffer.allocate(4).putFloat(float32).array()
     }
-    private fun writeFloat64(float64:Double):ByteArray {
+    internal fun writeFloat64(float64:Double):ByteArray {
         return ByteBuffer.allocate(8).putDouble(float64).array()
     }
     /**java/kotlin chars are always 16-bit, whereas UBJSON chars are only 8-bit.
@@ -119,10 +120,10 @@ class Writer(outputStream:OutputStream) {
             return bb.array()
         }
     }
-    private fun writeString(string:String):ByteArray {
+    internal fun writeString(string:String):ByteArray {
         return string.toByteArray(Charsets.UTF_8)//this is the default anyway, but it's better ot be explicit
     }
-    private fun writeHighPrecisionNumber(highPrecisionNumber:BigDecimal):ByteArray {
+    internal fun writeHighPrecisionNumber(highPrecisionNumber:BigDecimal):ByteArray {
         return writeString(highPrecisionNumber.toPlainString())
     }
 }
