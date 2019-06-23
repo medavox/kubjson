@@ -4,6 +4,11 @@ import java.io.OutputStream
 import java.math.BigDecimal
 import java.nio.ByteBuffer
 import kotlin.IllegalArgumentException
+import kotlin.reflect.KClass
+import kotlin.reflect.KProperty1
+import kotlin.reflect.full.allSuperclasses
+import kotlin.reflect.full.createInstance
+import kotlin.reflect.full.declaredMemberProperties
 
 internal fun ByteArray.toHexString() = joinToString("") { "%02x".format(it) }
 
@@ -40,31 +45,136 @@ fun hexOf(owt:Short){
  * NOTE: both UBJSON and Java (and by extension Kotlin) are Big-Endian, so no endianness conversion is necessary*/
 class Writer(/*outputStream:OutputStream*/) {
 
+    //archetypes for use with isInstance
+    private val boolean = false
+    private val byte:Byte = 127
+    private val short:Short = Short.MAX_VALUE
+    private val int:Int = Int.MAX_VALUE
+    private val long:Long = Long.MAX_VALUE
+    private val float:Float = Float.MAX_VALUE
+    private val double:Double = Double.MAX_VALUE
+    private val char:Char = 'c'
+    private val string:String = ""
+
+    fun /*<T : Any>*/ writeObject(obj:Any):ByteArray {
+        //write object tag
+        var out = writeChar('{')
+
+        //calculate & write number of properties
+        val cls:KClass<Any> = obj.javaClass.kotlin
+        //val cls:KClass<Any> = obj::class as KClass<Any>
+        var props/*:Collection<KProperty1<Any, *>>*/ = cls.declaredMemberProperties
+        for(clas/*:KClass<Any>*/ in obj.javaClass.kotlin.allSuperclasses) {
+            props += (clas.declaredMemberProperties as Collection<KProperty1<Any, *>>)
+        }
+        //println("all properties:"+props)
+        //exclude properties annotated with @KubjsonIgnore
+        props.filter { it.annotations.any { ann -> ann.annotationClass == KubjsonIgnore::class} }
+        out += writeChar('#') + writeLength(props.size.toLong())
+        for(prop:KProperty1<Any, *> in props) {
+            println("property: "+prop::class)
+            print("${prop.name}:")
+            val typeSurrogate = (prop.returnType.classifier as KClass<*>)//.objectInstance
+            //println("property type: $typeSurrogate\n")
+
+            //write variable name
+            out += writeString(prop.name)
+
+            //just write a null tag if the value is null; type info will just have to be omitted
+            if(prop.get(obj) == null) {
+                println("NULL")
+                out += writeNull()
+                continue
+            }
+
+            out += when {
+                typeSurrogate.isInstance(boolean) -> {
+                    println("Boolean = "+prop.get(obj))
+                    writeBoolean(prop.get(obj) as Boolean)
+                }
+                typeSurrogate.isInstance(byte) -> {
+                    println("Byte = "+prop.get(obj))
+                    writeInt8(prop.get(obj) as Byte)
+                }
+                typeSurrogate.isInstance(short) -> {
+                    println("Short = "+prop.get(obj))
+                    writeInt16(prop.get(obj) as Short)
+                }
+                typeSurrogate.isInstance(int) -> {
+                    println("Integer = "+prop.get(obj))
+                    writeInt32(prop.get(obj) as Int)
+                }
+                typeSurrogate.isInstance(long) -> {
+                    println("Long = "+prop.get(obj))
+                    writeInt64(prop.get(obj) as Long)
+                }
+                typeSurrogate.isInstance(float) -> {
+                    println("Float = "+prop.get(obj))
+                    writeFloat32(prop.get(obj) as Float)
+                }
+                typeSurrogate.isInstance(double) -> {
+                    println("Double = "+prop.get(obj))
+                    writeFloat64(prop.get(obj) as Double)
+                }
+                typeSurrogate.isInstance(char) -> {
+                    println("Char = "+prop.get(obj))
+                    writeChar(prop.get(obj) as Char)
+                }
+                typeSurrogate.isInstance(string) -> {
+                    println("String = "+prop.get(obj))
+                    writeString(prop.get(obj) as String)
+                }
+                else -> {
+                    println("unknown="+typeSurrogate)
+                    byteArrayOf()
+                }
+            }
+        }
+        return out
+    }
+
+    internal fun writeTypeMarker(valueType:ValueTypes):ByteArray {
+        return writeChar(valueType.marker)
+    }
+
+    /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
     internal fun writeLength(length:Long):ByteArray {
         if(length < Byte.MAX_VALUE) {
-            return writeInt8(length.toByte())
+            return writeTypeMarker(ValueTypes.INT8)  + writeInt8(length.toByte())
         }else if(length < Short.MAX_VALUE) {
-            return writeInt16(length.toShort())
+            return writeTypeMarker(ValueTypes.INT16) + writeInt16(length.toShort())
         }else if(length < Int.MAX_VALUE) {
-            return writeInt32(length.toInt())
+            return writeTypeMarker(ValueTypes.INT32) + writeInt32(length.toInt())
         }else {
-            return writeInt64((length))
+            return writeTypeMarker(ValueTypes.INT64) + writeInt64((length))
         }
+    }
+    /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
+    internal fun writeLength(length:Int):ByteArray {
+        return writeLength(length.toLong())
+    }
+    /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
+    internal fun writeLength(length:Short):ByteArray {
+        return writeLength(length.toLong())
+    }
+    /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
+    internal fun writeLength(length:Byte):ByteArray {
+        return writeLength(length.toLong())
     }
 
     internal fun writeNull(): ByteArray {
-        return byteArrayOf('Z'.toByte())
+        return writeTypeMarker(ValueTypes.NULL)
     }
 
     internal fun writeNoOp(): ByteArray {
-        return byteArrayOf('N'.toByte())
+        return writeTypeMarker(ValueTypes.NO_OP)
     }
 
     internal fun writeBoolean(boolean:Boolean):ByteArray {
         if(boolean == true) {
-            return byteArrayOf('T'.toByte())
+            return writeChar('T')
         }else {
-            return byteArrayOf('F'.toByte())
+            return writeChar('F')
         }
     }
 
@@ -78,7 +188,6 @@ class Writer(/*outputStream:OutputStream*/) {
     }
     @Throws(IllegalArgumentException::class)
     fun writeUint8(uint8:Short):ByteArray {
-        hexOf(uint8)
         if(uint8 > 255) {
             throw IllegalArgumentException("short argument cannot be > 255. Was $uint8.")
         }
@@ -120,7 +229,8 @@ class Writer(/*outputStream:OutputStream*/) {
         }
     }
     internal fun writeString(string:String):ByteArray {
-        return string.toByteArray(Charsets.UTF_8)//this is the default anyway, but it's better ot be explicit
+        //UTF-8 is the default CharSet argument anyway, but it's better to be explicit
+        return writeLength(string.length.toLong())+string.toByteArray(Charsets.UTF_8)
     }
     internal fun writeHighPrecisionNumber(highPrecisionNumber:BigDecimal):ByteArray {
         return writeString(highPrecisionNumber.toPlainString())
