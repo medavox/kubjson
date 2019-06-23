@@ -10,36 +10,6 @@ import kotlin.reflect.full.allSuperclasses
 import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.declaredMemberProperties
 
-internal fun ByteArray.toHexString() = joinToString("") { "%02x".format(it) }
-
-fun main() {
-    //tust('h')
-    //tust('д')
-    val writer = Writer(ByteArrayOutputStream(2))
-    writer.writeUint8(127)
-    writer.writeUint8(128)
-    writer.writeUint8(255)
-    writer.writeUint8(256)
-}
-
-internal fun tust(c:Char) {
-    with(System.out) {
-        //println("char size in bytes:" + Char.SIZE_BYTES)
-        print("bytes of '$c': ")
-        println(ByteBuffer.allocate(Char.SIZE_BYTES).putChar(c).array().toHexString())
-        print("'$c'.toByte: ")
-        println(byteArrayOf(c.toByte()).toHexString())
-    }
-    val writer = Writer(ByteArrayOutputStream(2))
-    writer.writeChar(c)
-}
-fun hexOf(owt:Short){
-    with(System.out) {
-        //println("char size in bytes:" + Char.SIZE_BYTES)
-        print("bytes of '$owt': ")
-        println(ByteBuffer.allocate(Short.SIZE_BYTES).putShort(owt).array().toHexString())
-    }
-}
 
 /**Basic low-level converter from JVM types to their UBJSON equivalents.
  * NOTE: both UBJSON and Java (and by extension Kotlin) are Big-Endian, so no endianness conversion is necessary*/
