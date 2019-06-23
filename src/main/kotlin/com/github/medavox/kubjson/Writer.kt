@@ -1,6 +1,5 @@
 package com.github.medavox.kubjson
 
-import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.math.BigDecimal
 import java.nio.ByteBuffer
@@ -39,7 +38,7 @@ fun hexOf(owt:Short){
 
 /**Basic low-level converter from JVM types to their UBJSON equivalents.
  * NOTE: both UBJSON and Java (and by extension Kotlin) are Big-Endian, so no endianness conversion is necessary*/
-class Writer(outputStream:OutputStream) {
+class Writer(/*outputStream:OutputStream*/) {
 
     internal fun writeLength(length:Long):ByteArray {
         if(length < Byte.MAX_VALUE) {
