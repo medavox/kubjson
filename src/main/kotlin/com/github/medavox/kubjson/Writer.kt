@@ -1,19 +1,16 @@
 package com.github.medavox.kubjson
 
-import java.io.OutputStream
 import java.math.BigDecimal
 import java.nio.ByteBuffer
 import kotlin.IllegalArgumentException
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.allSuperclasses
-import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.declaredMemberProperties
-
 
 /**Basic low-level converter from JVM types to their UBJSON equivalents.
  * NOTE: both UBJSON and Java (and by extension Kotlin) are Big-Endian, so no endianness conversion is necessary*/
-class Writer(/*outputStream:OutputStream*/) {
+object Writer {
 
     //archetypes for use with isInstance
     private val boolean = false
@@ -26,76 +23,52 @@ class Writer(/*outputStream:OutputStream*/) {
     private val char:Char = 'c'
     private val string:String = ""
 
-    fun /*<T : Any>*/ writeObject(obj:Any):ByteArray {
-        //write object tag
+    //todo: take arrays and lists as arrays
+    //todo: take all Big Number formats as High Precision Numbers
+
+    fun writeObject(obj:Any):ByteArray {
+        //write object tag-marker
         var out = writeChar('{')
 
-        //calculate & write number of properties
         val cls:KClass<Any> = obj.javaClass.kotlin
-        //val cls:KClass<Any> = obj::class as KClass<Any>
+        //val cls:KClass<Any> = obj::class as KClass<Any>//alternative way of getting a KClass<Any>, not KCLASS<out Any>
         var props/*:Collection<KProperty1<Any, *>>*/ = cls.declaredMemberProperties
-        for(clas/*:KClass<Any>*/ in obj.javaClass.kotlin.allSuperclasses) {
+        for(clas in obj.javaClass.kotlin.allSuperclasses) {
+            //FIXME: find another way to get all inherited properties from all superclasses,
+            // without doing an unchecked cast
             props += (clas.declaredMemberProperties as Collection<KProperty1<Any, *>>)
         }
-        //println("all properties:"+props)
+
         //exclude properties annotated with @KubjsonIgnore
         props.filter { it.annotations.any { ann -> ann.annotationClass == KubjsonIgnore::class} }
-        out += writeChar('#') + writeLength(props.size.toLong())
+        //calculate & write number of properties
+        out += writeChar('#') + writeLength(props.size)
         for(prop:KProperty1<Any, *> in props) {
-            println("property: "+prop::class)
-            print("${prop.name}:")
             val typeSurrogate = (prop.returnType.classifier as KClass<*>)//.objectInstance
-            //println("property type: $typeSurrogate\n")
+            println("${prop.name}:"+typeSurrogate.simpleName+" = "+prop.get(obj))
 
             //write variable name
             out += writeString(prop.name)
 
             //just write a null tag if the value is null; type info will just have to be omitted
             if(prop.get(obj) == null) {
-                println("NULL")
+                //println("NULL")
                 out += writeNull()
                 continue
             }
 
             out += when {
-                typeSurrogate.isInstance(boolean) -> {
-                    println("Boolean = "+prop.get(obj))
-                    writeBoolean(prop.get(obj) as Boolean)
-                }
-                typeSurrogate.isInstance(byte) -> {
-                    println("Byte = "+prop.get(obj))
-                    writeInt8(prop.get(obj) as Byte)
-                }
-                typeSurrogate.isInstance(short) -> {
-                    println("Short = "+prop.get(obj))
-                    writeInt16(prop.get(obj) as Short)
-                }
-                typeSurrogate.isInstance(int) -> {
-                    println("Integer = "+prop.get(obj))
-                    writeInt32(prop.get(obj) as Int)
-                }
-                typeSurrogate.isInstance(long) -> {
-                    println("Long = "+prop.get(obj))
-                    writeInt64(prop.get(obj) as Long)
-                }
-                typeSurrogate.isInstance(float) -> {
-                    println("Float = "+prop.get(obj))
-                    writeFloat32(prop.get(obj) as Float)
-                }
-                typeSurrogate.isInstance(double) -> {
-                    println("Double = "+prop.get(obj))
-                    writeFloat64(prop.get(obj) as Double)
-                }
-                typeSurrogate.isInstance(char) -> {
-                    println("Char = "+prop.get(obj))
-                    writeChar(prop.get(obj) as Char)
-                }
-                typeSurrogate.isInstance(string) -> {
-                    println("String = "+prop.get(obj))
-                    writeString(prop.get(obj) as String)
-                }
+                typeSurrogate.isInstance(boolean) -> writeBoolean(prop.get(obj) as Boolean)
+                typeSurrogate.isInstance(byte) -> writeInt8(prop.get(obj) as Byte)
+                typeSurrogate.isInstance(short) -> writeInt16(prop.get(obj) as Short)
+                typeSurrogate.isInstance(int) -> writeInt32(prop.get(obj) as Int)
+                typeSurrogate.isInstance(long) -> writeInt64(prop.get(obj) as Long)
+                typeSurrogate.isInstance(float) -> writeFloat32(prop.get(obj) as Float)
+                typeSurrogate.isInstance(double) -> writeFloat64(prop.get(obj) as Double)
+                typeSurrogate.isInstance(char) -> writeChar(prop.get(obj) as Char)
+                typeSurrogate.isInstance(string) -> writeString(prop.get(obj) as String)
                 else -> {
-                    println("unknown="+typeSurrogate)
+                    println("UNHANDLED TYPE:"+typeSurrogate)
                     byteArrayOf()
                 }
             }
