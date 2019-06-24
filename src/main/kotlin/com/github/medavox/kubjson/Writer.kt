@@ -76,6 +76,15 @@ object Writer {
         return out
     }
 
+    internal fun <T> writeArray(array:Array<T>):ByteArray {
+        //"WARNING: Kotlin (and the JVM) do not directly support heterogeneous arrays. Attempting to use an object instead..."
+        TODO()
+    }
+
+    internal fun writeByteArray(byteArray:ByteArray):ByteArray {
+        return writeChar(ValueTypes.ARRAY.marker)++byteArray
+    }
+
     internal fun writeTypeMarker(valueType:ValueTypes):ByteArray {
         return writeChar(valueType.marker)
     }
@@ -129,6 +138,9 @@ object Writer {
     internal fun writeUint8(uint8:UByte):ByteArray {
         return byteArrayOf(uint8.toByte())
     }
+
+    /**Write a Short value < 256 as a uint8.
+     * @throws IllegalArgumentException if the passed value is >= 256*/
     @Throws(IllegalArgumentException::class)
     fun writeUint8(uint8:Short):ByteArray {
         if(uint8 > 255) {
@@ -151,8 +163,9 @@ object Writer {
     internal fun writeFloat64(float64:Double):ByteArray {
         return ByteBuffer.allocate(8).putDouble(float64).array()
     }
-    /**java/kotlin chars are always 16-bit, whereas UBJSON chars are only 8-bit.
-    This method throws an error to the user that the upper byte will be lost,
+    /**Write an 8-bit ASCII character.
+     * Java/kotlin Chars are always 16-bit, whereas UBJSON chars are only 8-bit.
+    This method throws an error that the upper byte will be lost,
     if the char's upper byte is nonzero
      * @throws IndexOutOfBoundsException if the JVM 16-bit Char's upper 8 bits are nonzero*/
     @Throws(IndexOutOfBoundsException::class)
@@ -164,9 +177,9 @@ object Writer {
         //println("0th byte of the char:"+bb[0])
         //println("byte buffer as array:"+bb.array().toHexString())
         if(bb[0] != 0.toByte()) {
-            throw IndexOutOfBoundsException("JVM 16-bit char '$char' uses the upper 8 bits, " +
+            throw IndexOutOfBoundsException("the supplied 16-bit JVM  char '$char''s upper 8 bits are non-zero, " +
                     "which a UBJSON 8-bit char cannot store. "+
-                    "Use a UBSJON String instead for 16-bit-wide characters.")
+                    "Use an UBSJON String instead for 16-bit-wide characters.")
         } else {
             return bb.array()
         }
