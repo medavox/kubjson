@@ -4,7 +4,6 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 internal fun ByteArray.toHexString() = joinToString("") { "%02x".format(it) }
-    val writer = Writer()
 
 fun main() {
     //tust('h')
@@ -14,10 +13,10 @@ fun main() {
 
 @Test
 fun testWriteShortAsUint8() {
-    writer.writeUint8(hexOf(127))
-    writer.writeUint8(hexOf(128))
-    writer.writeUint8(hexOf(255))
-    writer.writeUint8(hexOf(256))
+    Writer.writeUint8(hexOf(127))
+    Writer.writeUint8(hexOf(128))
+    Writer.writeUint8(hexOf(255))
+    Writer.writeUint8(hexOf(256))
 }
 
 internal fun tust(c:Char) {
@@ -28,8 +27,7 @@ internal fun tust(c:Char) {
         print("'$c'.toByte: ")
         println(byteArrayOf(c.toByte()).toHexString())
     }
-    val writer = Writer()
-    writer.writeChar(c)
+    Writer.writeChar(c)
 }
 fun hexOf(owt:Short):Short {
     with(System.out) {
