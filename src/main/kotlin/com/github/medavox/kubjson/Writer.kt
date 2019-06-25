@@ -1,6 +1,7 @@
 package com.github.medavox.kubjson
 
 import java.math.BigDecimal
+import java.math.BigInteger
 import java.nio.ByteBuffer
 
 import kotlin.IllegalArgumentException
@@ -25,10 +26,12 @@ object Writer {
     private val double:Double = Double.MAX_VALUE
     private val char:Char = 'c'
     private val string:String = ""
+    private val bigDecimal = BigDecimal.ONE
+    private val bigInteger = BigInteger.ONE
 
     //todo: take arrays and lists as arrays
     //todo: take all Big Number formats as High Precision Numbers
-
+    //todo: handle Map types as UBJSON objects
     fun writeObject(obj:Any):ByteArray {
         //write object tag-marker
         var out = writeChar('{')
@@ -70,8 +73,20 @@ object Writer {
                 typeSurrogate.isInstance(double) -> writeFloat64(prop.get(obj) as Double)
                 typeSurrogate.isInstance(char) -> writeChar(prop.get(obj) as Char)
                 typeSurrogate.isInstance(string) -> writeString(prop.get(obj) as String)
+                typeSurrogate.isInstance(bigDecimal) -> writeHighPrecisionNumber(prop.get(obj) as BigDecimal)
+                typeSurrogate.isInstance(bigInteger)  -> writeHighPrecisionNumber((prop.get(obj) as BigInteger).toBigDecimal())
+                typeSurrogate.isInstance(booleanArrayOf()) -> writeArray(prop.get(obj) as BooleanArray)
+                typeSurrogate.isInstance(byteArrayOf()) -> writeArray(prop.get(obj) as ByteArray)
+                typeSurrogate.isInstance(shortArrayOf()) -> writeArray(prop.get(obj) as ShortArray)
+                typeSurrogate.isInstance(intArrayOf()) -> writeArray(prop.get(obj) as IntArray)
+                typeSurrogate.isInstance(longArrayOf()) -> writeArray(prop.get(obj) as LongArray)
+                typeSurrogate.isInstance(floatArrayOf()) -> writeArray(prop.get(obj) as FloatArray)
+                typeSurrogate.isInstance(doubleArrayOf()) -> writeArray(prop.get(obj) as DoubleArray)
+                typeSurrogate.isInstance(charArrayOf()) -> writeArray(prop.get(obj) as CharArray)
+                typeSurrogate.isInstance(emptyArray<Any?>()) -> writeArray(prop.get(obj) as Array<Any?>)
                 else -> {
                     println("UNHANDLED TYPE:"+typeSurrogate)
+                    //todo: try to serialise unknown types as a nested object
                     byteArrayOf()
                 }
             }
