@@ -94,13 +94,101 @@ object Writer {
         return out
     }
 
-    internal fun <T> writeArray(array:Array<T>):ByteArray {
+    fun writeArray(array:Array<Any?>):ByteArray {
         //"WARNING: Kotlin (and the JVM) do not directly support heterogeneous arrays. Attempting to use an object instead..."
+        var outputBytes:ByteArray = writeMarker(ARRAY_START)
+        //first: check that every elementin the array is of the same type,
+        //by adding the type of every element to a set
+        val typesInArray:Set<KClass<*>?> = array.map { it?.javaClass?.kotlin}.toSet()
+        println("types in array: "+typesInArray)
+        val homogeneous = if(typesInArray.size > 1) {
+            //if the set.size > 1, use heterogeneous array syntax
+
+            false
+        }else {
+            // otherwise, make a homogeneous array of that one type
+            outputBytes += writeMarkers(HOMOGENEOUS_CONTAINER_TYPE)
+            true
+        }
+        //also: check for nullability in elements, then nullness
+        outputBytes += writeMarker(CONTAINER_LENGTH) + writeLength(array.size)
+
+        println("array type:"+array::class.typeParameters)
+        for(element in array) {
+            println("element: "+element)
+            println("type: "+element?.javaClass?.simpleName)
+        }
         TODO()
     }
 
-    internal fun writeByteArray(byteArray:ByteArray):ByteArray {
-        return writeChar(ValueTypes.ARRAY.marker)++byteArray
+    fun writeArray(array:BooleanArray):ByteArray {
+        TODO()
+        //check if all values are the same. if they are, use the homgeneous array syntax and don't bother with payloads
+        //if they're not all the same, set each one individually
+    }
+
+    fun writeArray(array:ByteArray):ByteArray {
+        return writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, UINT8_TYPE, CONTAINER_LENGTH) +
+                writeLength(array.size) + array
+    }
+
+    fun writeArray(array:ShortArray):ByteArray {
+        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, INT16_TYPE, CONTAINER_LENGTH) +
+                writeLength(array.size)
+
+        for(i in array.indices) {
+            byteOutput += writeInt16(array[i])
+        }
+        return byteOutput
+    }
+
+    fun writeArray(array:IntArray):ByteArray {
+        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, INT32_TYPE, CONTAINER_LENGTH) +
+                writeLength(array.size)
+        for(i in array.indices) {
+            byteOutput += writeInt32(array[i])
+        }
+        return byteOutput
+    }
+
+    fun writeArray(array:LongArray):ByteArray {
+        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, INT64_TYPE, CONTAINER_LENGTH) +
+                writeLength(array.size)
+
+        for(i in array.indices) {
+            byteOutput += writeInt64(array[i])
+        }
+        return byteOutput
+    }
+
+    fun writeArray(array:FloatArray):ByteArray {
+        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, FLOAT32_TYPE, CONTAINER_LENGTH) +
+                writeLength(array.size)
+
+        for(i in array.indices) {
+            byteOutput += writeFloat32(array[i])
+        }
+        return byteOutput
+    }
+
+    fun writeArray(array:DoubleArray):ByteArray {
+        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, FLOAT64_TYPE, CONTAINER_LENGTH) +
+                writeLength(array.size)
+
+        for(i in array.indices) {
+            byteOutput += writeFloat64(array[i])
+        }
+        return byteOutput
+    }
+
+    fun writeArray(array:CharArray):ByteArray {
+        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, CHAR_TYPE, CONTAINER_LENGTH) +
+                writeLength(array.size)
+
+        for(i in array.indices) {
+            byteOutput += writeChar(array[i])
+        }
+        return byteOutput
     }
 
     private fun writeMarker(valueType:Markers):ByteArray {
