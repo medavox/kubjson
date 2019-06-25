@@ -2,11 +2,14 @@ package com.github.medavox.kubjson
 
 import java.math.BigDecimal
 import java.nio.ByteBuffer
+
 import kotlin.IllegalArgumentException
 import kotlin.reflect.KClass
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.allSuperclasses
 import kotlin.reflect.full.declaredMemberProperties
+
+import com.github.medavox.kubjson.Markers.*
 
 /**Basic low-level converter from JVM types to their UBJSON equivalents.
  * NOTE: both UBJSON and Java (and by extension Kotlin) are Big-Endian, so no endianness conversion is necessary*/
@@ -85,20 +88,28 @@ object Writer {
         return writeChar(ValueTypes.ARRAY.marker)++byteArray
     }
 
-    internal fun writeTypeMarker(valueType:ValueTypes):ByteArray {
+    private fun writeMarker(valueType:Markers):ByteArray {
         return writeChar(valueType.marker)
+    }
+
+    private fun writeMarkers(vararg markers:Markers):ByteArray {
+        var byteArray:ByteArray = byteArrayOf()
+        for(marker in markers) {
+            byteArray += writeChar(marker.marker)
+        }
+        return byteArray
     }
 
     /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
     internal fun writeLength(length:Long):ByteArray {
         if(length < Byte.MAX_VALUE) {
-            return writeTypeMarker(ValueTypes.INT8)  + writeInt8(length.toByte())
+            return writeMarker(Markers.INT8_TYPE)  + writeInt8(length.toByte())
         }else if(length < Short.MAX_VALUE) {
-            return writeTypeMarker(ValueTypes.INT16) + writeInt16(length.toShort())
+            return writeMarker(Markers.INT16_TYPE) + writeInt16(length.toShort())
         }else if(length < Int.MAX_VALUE) {
-            return writeTypeMarker(ValueTypes.INT32) + writeInt32(length.toInt())
+            return writeMarker(Markers.INT32_TYPE) + writeInt32(length.toInt())
         }else {
-            return writeTypeMarker(ValueTypes.INT64) + writeInt64((length))
+            return writeMarker(Markers.INT64_TYPE) + writeInt64((length))
         }
     }
     /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
@@ -115,11 +126,11 @@ object Writer {
     }
 
     internal fun writeNull(): ByteArray {
-        return writeTypeMarker(ValueTypes.NULL)
+        return writeMarker(Markers.NULL_TYPE)
     }
 
     internal fun writeNoOp(): ByteArray {
-        return writeTypeMarker(ValueTypes.NO_OP)
+        return writeMarker(Markers.NO_OP_TYPE)
     }
 
     internal fun writeBoolean(boolean:Boolean):ByteArray {
