@@ -5,8 +5,9 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.reflect.KClass
 
-class Reader(private val inputStream:InputStream, private val listener: ReaderListener) {
+class Reader(private val inputStream: InputStream, private val listener: ReaderListener) {
 
     //All integer types (int8, uint8, int16, int32 and int64) are written in most-significant-bit order
     // (high byte written first, aka “big endian“).
@@ -17,6 +18,9 @@ class Reader(private val inputStream:InputStream, private val listener: ReaderLi
     //The Universal Binary JSON specification dictates UTF-8 as the required string encoding
     // (this includes the high-precision number type as it is a string-encoded value).
 
+    //fixme: using a listener is no good, because it can't handle container types:
+    // how would you tell if onBoolean() was being called for a value in the current type,
+    // or a type inside that type?
     fun processNextValue() {
         val oneByte:ByteArray = byteArrayOf(0)
         inputStream.read(oneByte)
@@ -116,19 +120,26 @@ class Reader(private val inputStream:InputStream, private val listener: ReaderLi
         return ByteBuffer.wrap(byteArrayOf(b)).order(ByteOrder.BIG_ENDIAN).get()
     }
 
+    /**Read the contents of the UInt8 in the start of the passed [ByteArray], without a preceding type marker or length.*/
     @UseExperimental(ExperimentalUnsignedTypes::class)
     internal fun readUint8(b:Byte):UByte {
         return readInt8(b).toUByte()
     }
 
+    /**Read a UBJSON Int16 value into a JVM Short.
+     * @param b a [ByteArray] of the contents (no type marker)*/
     internal fun readInt16(b:ByteArray):Short {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getShort()
     }
 
+    /**Read the contents of the Int32 contained at the start of the passed [ByteArray] into a JVM Int(eger),
+     * without a preceding type marker or length.*/
     internal fun readInt32(b:ByteArray):Int {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getInt()
     }
 
+    /**Read the contents of the Int64 contained at the start of the passed [ByteArray] into a JVM Long,
+     * without a preceding type marker or length.*/
     internal fun readInt64(b:ByteArray):Long {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getLong()
     }
@@ -145,6 +156,8 @@ class Reader(private val inputStream:InputStream, private val listener: ReaderLi
         return readInt8(b).toChar()
     }
 
+    /**Read the value of a UBJSON UTF-8 encoded string into a JVM UTF-16 String
+     * @param b a [ByteArray] containing just the content of the string -- no type marker or length field*/
     internal fun readString(b:ByteArray):String {
         return b.toString(Charsets.UTF_8)
     }
