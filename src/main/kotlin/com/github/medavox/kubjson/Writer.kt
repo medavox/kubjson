@@ -217,7 +217,7 @@ object Writer {
     }
 
     /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
-    internal fun writeLength(length:Long):ByteArray {
+    private fun writeLength(length:Long):ByteArray {
         if(length < Byte.MAX_VALUE) {
             return writeMarker(Markers.INT8_TYPE)  + writeInt8(length.toByte())
         }else if(length < Short.MAX_VALUE) {
@@ -229,24 +229,24 @@ object Writer {
         }
     }
     /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
-    internal fun writeLength(length:Int):ByteArray {
+    private fun writeLength(length:Int):ByteArray {
         return writeLength(length.toLong())
     }
     /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
-    internal fun writeLength(length:Short):ByteArray {
+    private fun writeLength(length:Short):ByteArray {
         return writeLength(length.toLong())
     }
     /**Write a variable-length integral numeric type which is large enough to hold the specified value*/
-    internal fun writeLength(length:Byte):ByteArray {
+    private fun writeLength(length:Byte):ByteArray {
         return writeLength(length.toLong())
     }
 
-    internal fun writeNull(): ByteArray {
-        return writeMarker(Markers.NULL_TYPE)
+    private fun writeNull(): ByteArray {
+        return writeMarker(NULL_TYPE)
     }
 
     internal fun writeNoOp(): ByteArray {
-        return writeMarker(Markers.NO_OP_TYPE)
+        return writeMarker(NO_OP_TYPE)
     }
 
     internal fun writeBoolean(boolean:Boolean):ByteArray {
