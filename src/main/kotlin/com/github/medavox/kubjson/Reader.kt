@@ -71,7 +71,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
                 listener.onChar(readChar(ba[0]))
             }
             STRING_TYPE.marker -> {
-                val strLength = readLength()
+                val strLength = readLength(inputStream)
                 if(strLength > Int.MAX_VALUE) {
                     throw IllegalStateException("string is longer than Kotlin's max supported length: $strLength")
                 }
@@ -80,7 +80,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
                 listener.onString(readString(ba))
             }
             HIGH_PRECISION_NUMBER_TYPE.marker -> {
-                val strLength = readLength()
+                val strLength = readLength(inputStream)
                 if(strLength > Int.MAX_VALUE) {
                     throw IllegalStateException("string is longer than Kotlin's max supported length: $strLength")
                 }
@@ -92,27 +92,34 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         }
     }
 
-    internal fun readLength():Long {
+    /**it's a bad  idea to pass all the bytes at the start, because we don't know how many bytes we'll need,
+     and we might try and pass more bytes than are left in the array, even if those extras bytes are not needed*/
+    internal fun readLength(input:InputStream):Long {
         val oneByte = ByteArray(1)
-        inputStream.read(oneByte)
+        input.read(oneByte)
         return when(readChar(oneByte[0])) {
             INT8_TYPE.marker -> {
                 val ba = ByteArray(1)
+                input.read(ba)
                 readInt8(ba[0]).toLong()
             }
             INT16_TYPE.marker -> {
                 val ba = ByteArray(2)
+                input.read(ba)
                 readInt16(ba).toLong()
             }
             INT32_TYPE.marker -> {
                 val ba = ByteArray(4)
+                input.read(ba)
                 readInt32(ba).toLong()
             }
             INT64_TYPE.marker -> {
                 val ba = ByteArray(8)
+                input.read(ba)
                 readInt64(ba)
             }
-            else -> throw IllegalArgumentException("was expecting a numeric type marker, but got ${oneByte[0]}")
+            else -> throw IllegalArgumentException("was expecting a numeric type marker, " +
+                    "but got ${oneByte[0]} = '${oneByte[0].toChar()}'")
         }
     }
 
