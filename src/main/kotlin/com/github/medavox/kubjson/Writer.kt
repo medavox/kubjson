@@ -136,9 +136,22 @@ object Writer {
     }
 
     fun writeArray(array:BooleanArray):ByteArray {
-        TODO()
         //check if all values are the same. if they are, use the homgeneous array syntax and don't bother with payloads
-        //if they're not all the same, set each one individually
+        //if they're not all the same, write each one individually
+
+        return if(array.all { it == true }) {
+            writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, TRUE_TYPE, CONTAINER_LENGTH) +
+                    writeLength(array.size)
+        }else if(array.all{ it == false}) {
+            writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, FALSE_TYPE, CONTAINER_LENGTH) +
+                    writeLength(array.size)
+        }else {
+            var out = byteArrayOf()
+            for(bool in array) {
+                out += writeBoolean(bool)
+            }
+            writeMarker(CONTAINER_LENGTH) + writeLength(array.size) + out
+        }
     }
 
     fun writeArray(array:ByteArray):ByteArray {
