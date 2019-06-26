@@ -13,28 +13,18 @@ import kotlin.reflect.full.declaredMemberProperties
 import com.github.medavox.kubjson.Markers.*
 
 /**Basic low-level converter from JVM types to their UBJSON equivalents.
- * NOTE: both UBJSON and Java (and by extension Kotlin) are Big-Endian, so no endianness conversion is necessary*/
+ * Both UBJSON and Java (and by extension Kotlin) are Big-Endian, so no endianness conversion is necessary.
+ * the byte arrays returned by these methods only contain the data payload*/
 object Writer {
 
-    //archetypes for use with isInstance
-    private val boolean = false
-    private val byte:Byte = 127
-    private val short:Short = Short.MAX_VALUE
-    private val int:Int = Int.MAX_VALUE
-    private val long:Long = Long.MAX_VALUE
-    private val float:Float = Float.MAX_VALUE
-    private val double:Double = Double.MAX_VALUE
-    private val char:Char = 'c'
-    private val string:String = ""
-    private val bigDecimal = BigDecimal.ONE
-    private val bigInteger = BigInteger.ONE
+
 
     //todo: take arrays and lists as arrays
     //todo: take all Big Number formats as High Precision Numbers
     //todo: handle Map types as UBJSON objects
     fun writeObject(obj:Any):ByteArray {
         //write object tag-marker
-        var out = writeChar('{')
+        var out = byteArrayOf()
 
         val cls:KClass<Any> = obj.javaClass.kotlin
         //val cls:KClass<Any> = obj::class as KClass<Any>//alternative way of getting a KClass<Any>, not KCLASS<out Any>
@@ -49,54 +39,78 @@ object Writer {
         props.filter { it.annotations.any { ann -> ann.annotationClass == KubjsonIgnore::class} }
         //calculate & write number of properties
         out += writeChar('#') + writeLength(props.size)
+
+        //write the name, type and value of every property
         for(prop:KProperty1<Any, *> in props) {
             val typeSurrogate = (prop.returnType.classifier as KClass<*>)//.objectInstance
             println("${prop.name}:"+typeSurrogate.simpleName+" = "+prop.get(obj))
 
-            //write variable name
-            out += writeString(prop.name)
-
-            //just write a null tag if the value is null; type info will just have to be omitted
-            if(prop.get(obj) == null) {
-                //println("NULL")
-                out += writeNull()
-                continue
-            }
-
-            out += when {
-                typeSurrogate.isInstance(boolean) -> writeBoolean(prop.get(obj) as Boolean)
-                typeSurrogate.isInstance(byte) -> writeInt8(prop.get(obj) as Byte)
-                typeSurrogate.isInstance(short) -> writeInt16(prop.get(obj) as Short)
-                typeSurrogate.isInstance(int) -> writeInt32(prop.get(obj) as Int)
-                typeSurrogate.isInstance(long) -> writeInt64(prop.get(obj) as Long)
-                typeSurrogate.isInstance(float) -> writeFloat32(prop.get(obj) as Float)
-                typeSurrogate.isInstance(double) -> writeFloat64(prop.get(obj) as Double)
-                typeSurrogate.isInstance(char) -> writeChar(prop.get(obj) as Char)
-                typeSurrogate.isInstance(string) -> writeString(prop.get(obj) as String)
-                typeSurrogate.isInstance(bigDecimal) -> writeHighPrecisionNumber(prop.get(obj) as BigDecimal)
-                typeSurrogate.isInstance(bigInteger)  -> writeHighPrecisionNumber((prop.get(obj) as BigInteger).toBigDecimal())
-                typeSurrogate.isInstance(booleanArrayOf()) -> writeArray(prop.get(obj) as BooleanArray)
-                typeSurrogate.isInstance(byteArrayOf()) -> writeArray(prop.get(obj) as ByteArray)
-                typeSurrogate.isInstance(shortArrayOf()) -> writeArray(prop.get(obj) as ShortArray)
-                typeSurrogate.isInstance(intArrayOf()) -> writeArray(prop.get(obj) as IntArray)
-                typeSurrogate.isInstance(longArrayOf()) -> writeArray(prop.get(obj) as LongArray)
-                typeSurrogate.isInstance(floatArrayOf()) -> writeArray(prop.get(obj) as FloatArray)
-                typeSurrogate.isInstance(doubleArrayOf()) -> writeArray(prop.get(obj) as DoubleArray)
-                typeSurrogate.isInstance(charArrayOf()) -> writeArray(prop.get(obj) as CharArray)
-                typeSurrogate.isInstance(emptyArray<Any?>()) -> writeArray(prop.get(obj) as Array<Any?>)
-                else -> {
-                    println("UNHANDLED TYPE:"+typeSurrogate)
-                    //todo: try to serialise unknown types as a nested object
-                    byteArrayOf()
-                }
-            }
+            //write variable name & value
+            out += writeString(prop.name) + writeAnything(prop.get(obj))
         }
         return out
     }
 
+
+
+    /**Unlike most other write-methods here, this method precedes the written content with its type marker*/
+    private fun writeAnything(any:Any?, writeTypeMarker:Boolean=true):ByteArray {
+        data class TypeAndContent(val typeMarker:ByteArray, val content:ByteArray)
+        //just write a null tag if the value is null; type info will just have to be omitted
+        if(any == null) {
+            //println("NULL")
+            return writeNull()
+        }
+
+        //archetypes for use with isInstance
+        val boolean = false
+        val byte:Byte = 127
+        val short:Short = Short.MAX_VALUE
+        val int:Int = Int.MAX_VALUE
+        val long:Long = Long.MAX_VALUE
+        val float:Float = Float.MAX_VALUE
+        val double:Double = Double.MAX_VALUE
+        val char:Char = 'c'
+        val string:String = ""
+        val bigDecimal = BigDecimal.ONE
+        val bigInteger = BigInteger.ONE
+
+        val typeSurrogate = any.javaClass.kotlin
+        val (type, content) = with(typeSurrogate) {
+            when {
+                isInstance(boolean) -> TypeAndContent(writeBoolean(any as Boolean), byteArrayOf())//the boolean's type marker IS the content
+                isInstance(byte) -> TypeAndContent(writeMarker(INT8_TYPE), writeInt8(any as Byte))
+                isInstance(short) -> TypeAndContent(writeMarker(INT16_TYPE), writeInt16(any as Short))
+                isInstance(int) -> TypeAndContent(writeMarker(INT32_TYPE), writeInt32(any as Int))
+                isInstance(long) -> TypeAndContent(writeMarker(INT64_TYPE), writeInt64(any as Long))
+                isInstance(float) -> TypeAndContent(writeMarker(FLOAT32_TYPE), writeFloat32(any as Float))
+                isInstance(double) -> TypeAndContent(writeMarker(FLOAT64_TYPE), writeFloat64(any as Double))
+                isInstance(char) -> TypeAndContent(writeMarker(CHAR_TYPE), writeChar(any as Char))
+                isInstance(string) -> TypeAndContent(writeMarker(STRING_TYPE), writeString(any as String))
+                isInstance(bigDecimal) -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber(any as BigDecimal))
+                isInstance(bigInteger) -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber((any as BigInteger).toBigDecimal()))
+                isInstance(booleanArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as BooleanArray))
+                isInstance(byteArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as ByteArray))
+                isInstance(shortArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as ShortArray))
+                isInstance(intArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as IntArray))
+                isInstance(longArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as LongArray))
+                isInstance(floatArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as FloatArray))
+                isInstance(doubleArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as DoubleArray))
+                isInstance(charArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as CharArray))
+                isInstance(emptyArray<Any?>()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as Array<Any?>))
+                else -> {
+                    println("UNHANDLED TYPE:" + typeSurrogate)
+                    //todo: try to serialise unknown types as an object
+                    TypeAndContent(byteArrayOf(), byteArrayOf())
+                }
+            }
+        }
+        return if(writeTypeMarker) type + content else content
+    }
+
     fun writeArray(array:Array<Any?>):ByteArray {
-        //"WARNING: Kotlin (and the JVM) do not directly support heterogeneous arrays. Attempting to use an object instead..."
-        var outputBytes:ByteArray = writeMarker(ARRAY_START)
+        //don't include the type marker, by convention with the other methods
+        var outputBytes:ByteArray = byteArrayOf()
         //first: check that every elementin the array is of the same type,
         //by adding the type of every element to a set
         val typesInArray:Set<KClass<*>?> = array.map { it?.javaClass?.kotlin}.toSet()
@@ -111,14 +125,16 @@ object Writer {
             true
         }
         //also: check for nullability in elements, then nullness
+
+        //either way, write array length (we always write array length)
         outputBytes += writeMarker(CONTAINER_LENGTH) + writeLength(array.size)
 
         println("array type:"+array::class.typeParameters)
         for(element in array) {
             println("element: "+element)
             println("type: "+element?.javaClass?.simpleName)
+            outputBytes += writeAnything(element, homogeneous)
         }
-        TODO()
     }
 
     fun writeArray(array:BooleanArray):ByteArray {
