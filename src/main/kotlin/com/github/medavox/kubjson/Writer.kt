@@ -142,12 +142,14 @@ object Writer {
     }
 
     fun writeArray(array:ByteArray):ByteArray {
-        return writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, UINT8_TYPE, CONTAINER_LENGTH) +
+        //don't write the type marker: the caller does that
+        return writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, UINT8_TYPE, CONTAINER_LENGTH) +
                 writeLength(array.size) + array
     }
 
     fun writeArray(array:ShortArray):ByteArray {
-        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, INT16_TYPE, CONTAINER_LENGTH) +
+        //don't write the type marker: the caller does that
+        var byteOutput = writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, INT16_TYPE, CONTAINER_LENGTH) +
                 writeLength(array.size)
 
         for(i in array.indices) {
@@ -157,7 +159,8 @@ object Writer {
     }
 
     fun writeArray(array:IntArray):ByteArray {
-        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, INT32_TYPE, CONTAINER_LENGTH) +
+        //don't write the type marker: the caller does that
+        var byteOutput = writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, INT32_TYPE, CONTAINER_LENGTH) +
                 writeLength(array.size)
         for(i in array.indices) {
             byteOutput += writeInt32(array[i])
@@ -166,7 +169,8 @@ object Writer {
     }
 
     fun writeArray(array:LongArray):ByteArray {
-        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, INT64_TYPE, CONTAINER_LENGTH) +
+        //don't write the type marker: the caller does that
+        var byteOutput = writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, INT64_TYPE, CONTAINER_LENGTH) +
                 writeLength(array.size)
 
         for(i in array.indices) {
@@ -176,7 +180,8 @@ object Writer {
     }
 
     fun writeArray(array:FloatArray):ByteArray {
-        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, FLOAT32_TYPE, CONTAINER_LENGTH) +
+        //don't write the type marker: the caller does that
+        var byteOutput = writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, FLOAT32_TYPE, CONTAINER_LENGTH) +
                 writeLength(array.size)
 
         for(i in array.indices) {
@@ -186,7 +191,8 @@ object Writer {
     }
 
     fun writeArray(array:DoubleArray):ByteArray {
-        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, FLOAT64_TYPE, CONTAINER_LENGTH) +
+        //don't write the type marker: the caller does that
+        var byteOutput = writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, FLOAT64_TYPE, CONTAINER_LENGTH) +
                 writeLength(array.size)
 
         for(i in array.indices) {
@@ -196,7 +202,8 @@ object Writer {
     }
 
     fun writeArray(array:CharArray):ByteArray {
-        var byteOutput = writeMarkers(ARRAY_START, HOMOGENEOUS_CONTAINER_TYPE, CHAR_TYPE, CONTAINER_LENGTH) +
+        //don't write the type marker: the caller does that
+        var byteOutput = writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, CHAR_TYPE, CONTAINER_LENGTH) +
                 writeLength(array.size)
 
         for(i in array.indices) {
