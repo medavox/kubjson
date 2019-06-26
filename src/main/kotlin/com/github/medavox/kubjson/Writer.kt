@@ -53,7 +53,7 @@ object Writer {
 
 
     /**Unlike most other write-methods here, this method precedes the written content with its type marker*/
-    private fun writeAnything(any:Any?, writeTypeMarker:Boolean=true):ByteArray {
+    internal fun writeAnything(any:Any?, writeTypeMarker:Boolean=true):ByteArray {
         data class TypeAndContent(val typeMarker:ByteArray, val content:ByteArray)
         //just write a null tag if the value is null; type info will just have to be omitted
         if(any == null) {
@@ -132,6 +132,7 @@ object Writer {
             println("type: "+element?.javaClass?.simpleName)
             outputBytes += writeAnything(element, homogeneous)
         }
+        return outputBytes
     }
 
     fun writeArray(array:BooleanArray):ByteArray {
