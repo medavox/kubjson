@@ -17,13 +17,12 @@ import com.github.medavox.kubjson.Markers.*
  * the byte arrays returned by these methods only contain the data payload*/
 object Writer {
 
-
-
-    //todo: take arrays and lists as arrays
-    //todo: take all Big Number formats as High Precision Numbers
+    //todo: handle JVM List types as arrays
     //todo: handle Map types as UBJSON objects
+    //todo: always write a numeric value to the smallest type that can hold it, as per the spec:
+    // http://ubjson.org/developer-resources/#best_smallest_num
     fun writeObject(obj:Any):ByteArray {
-        //write object tag-marker
+        //don't write object tag-marker, by convention with other methods
         var out = byteArrayOf()
 
         val cls:KClass<Any> = obj.javaClass.kotlin
@@ -46,7 +45,7 @@ object Writer {
             println("${prop.name}:"+typeSurrogate.simpleName+" = "+prop.get(obj))
 
             //write variable name & value
-            out += writeString(prop.name) + writeAnything(prop.get(obj))
+            out += writeString(prop.name) + writeAnything(prop.get(obj), true)
         }
         return out
     }
@@ -72,8 +71,6 @@ object Writer {
         val double:Double = Double.MAX_VALUE
         val char:Char = 'c'
         val string:String = ""
-        val bigDecimal = BigDecimal.ONE
-        val bigInteger = BigInteger.ONE
 
         val typeSurrogate = any.javaClass.kotlin
         val (type, content) = with(typeSurrogate) {
@@ -87,8 +84,8 @@ object Writer {
                 isInstance(double) -> TypeAndContent(writeMarker(FLOAT64_TYPE), writeFloat64(any as Double))
                 isInstance(char) -> TypeAndContent(writeMarker(CHAR_TYPE), writeChar(any as Char))
                 isInstance(string) -> TypeAndContent(writeMarker(STRING_TYPE), writeString(any as String))
-                isInstance(bigDecimal) -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber(any as BigDecimal))
-                isInstance(bigInteger) -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber((any as BigInteger).toBigDecimal()))
+                isInstance(BigDecimal.ONE) -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber(any as BigDecimal))
+                isInstance(BigInteger.ONE) -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber((any as BigInteger).toBigDecimal()))
                 isInstance(booleanArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as BooleanArray))
                 isInstance(byteArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as ByteArray))
                 isInstance(shortArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as ShortArray))
@@ -309,7 +306,7 @@ object Writer {
         if(bb[0] != 0.toByte()) {
             throw IndexOutOfBoundsException("the supplied 16-bit JVM  char '$char''s upper 8 bits are non-zero, " +
                     "which a UBJSON 8-bit char cannot store. "+
-                    "Use an UBSJON String instead for 16-bit-wide characters.")
+                    "Use an UBSJON String instead for UTF-8 support, which includes 16-bit-wide characters.")
         } else {
             return bb.array()
         }
