@@ -18,57 +18,57 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
     //The Universal Binary JSON specification dictates UTF-8 as the required string encoding
     // (this includes the high-precision number type as it is a string-encoded value).
 
-    //fixme: using a listener is no good, because it can't handle container types:
+    //using a listener is no good, because it can't handle container types:
     // how would you tell if onBoolean() was being called for a value in the current type,
     // or a type inside that type?
-    fun processNextValue() {
+    fun InputStream.readNext():Any? {
         val oneByte:ByteArray = byteArrayOf(0)
-        inputStream.read(oneByte)
-        when(readChar(oneByte[0])) {
-            NULL_TYPE.marker -> listener.onNull()
-            NO_OP_TYPE.marker -> listener.onNoOp()
-            TRUE_TYPE.marker -> listener.onBoolean(true)
-            FALSE_TYPE.marker -> listener.onBoolean(false)
+        read(oneByte)
+        return when(readChar(oneByte[0])) {
+            NULL_TYPE.marker -> null
+            NO_OP_TYPE.marker -> Unit
+            TRUE_TYPE.marker -> true
+            FALSE_TYPE.marker -> false
 
             INT8_TYPE.marker -> {
                 val ba = ByteArray(1)
-                inputStream.read(ba)
-                listener.onInt8(readInt8(ba[0]))
+                read(ba)
+                readInt8(ba[0])
             }
             UINT8_TYPE.marker -> {
                 val ba = ByteArray(1)
-                inputStream.read(ba)
-                listener.onUint8(readUint8(ba[0]))
+                read(ba)
+                readUint8(ba[0])
             }
             INT16_TYPE.marker -> {
                 val ba = ByteArray(2)
-                inputStream.read(ba)
-                listener.onInt16(readInt16(ba))
+                read(ba)
+                readInt16(ba)
             }
             INT32_TYPE.marker -> {
                 val ba = ByteArray(4)
-                inputStream.read(ba)
-                listener.onInt32(readInt32(ba))
+                read(ba)
+                readInt32(ba)
             }
             INT64_TYPE.marker -> {
                 val ba = ByteArray(8)
-                inputStream.read(ba)
-                listener.onInt64(readInt64(ba))
+                read(ba)
+                readInt64(ba)
             }
             FLOAT32_TYPE.marker -> {
                 val ba = ByteArray(4)
-                inputStream.read(ba)
-                listener.onFloat32(readFloat32(ba))
+                read(ba)
+                readFloat32(ba)
             }
             FLOAT64_TYPE.marker -> {
                 val ba = ByteArray(8)
-                inputStream.read(ba)
-                listener.onFloat64(readFloat64(ba))
+                read(ba)
+                readFloat64(ba)
             }
             CHAR_TYPE.marker -> {
                 val ba = ByteArray(1)
-                inputStream.read(ba)
-                listener.onChar(readChar(ba[0]))
+                read(ba)
+                readChar(ba[0])
             }
             STRING_TYPE.marker -> {
                 val strLength = readLength(inputStream)
@@ -76,8 +76,8 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
                     throw IllegalStateException("string is longer than Kotlin's max supported length: $strLength")
                 }
                 val ba = ByteArray(strLength.toInt())
-                inputStream.read(ba)
-                listener.onString(readString(ba))
+                read(ba)
+                readString(ba)
             }
             HIGH_PRECISION_NUMBER_TYPE.marker -> {
                 val strLength = readLength(inputStream)
@@ -85,10 +85,13 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
                     throw IllegalStateException("string is longer than Kotlin's max supported length: $strLength")
                 }
                 val ba = ByteArray(strLength.toInt())
-                inputStream.read(ba)
-                listener.onHighPrecisionNumber(readHighPrecisionNumber(ba))
+                read(ba)
+                readHighPrecisionNumber(ba)
             }
-            else -> throw IllegalArgumentException("was expecting a UBJSON type marker, but got ${oneByte[0]}")
+            OBJECT_START.marker -> {
+
+            }
+            else -> throw IllegalArgumentException("was expecting a UBJSON type marker, but got ${oneByte[0]} = '${oneByte[0].toChar()}'")
         }
     }
 
