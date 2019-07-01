@@ -1,10 +1,12 @@
 package com.github.medavox.kubjson
 
 import com.github.medavox.kubjson.Markers.*
+import java.io.BufferedInputStream
 import java.io.InputStream
 import java.math.BigDecimal
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.text.ParseException
 import kotlin.reflect.KClass
 
 class Reader(private val inputStream: InputStream, private val listener: ReaderListener) {
@@ -126,7 +128,108 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         }
     }
 
-    internal fun readInt8(b:Byte):Byte{
+    /**Reads an arbitrary number of bytes from the passed [InputStream], until the object is parsed or an error occurs.
+     *
+     * Unlike the `read` methods for value types, we can't pass a ByteArray to this function,
+     * because we don't know in advance how many bytes long the object is.
+     * In those cases finding out its length in bytes would amount to parsing it.
+     *
+     * (Technically, we do know the byte-length of a homogeneous object with a length marker,
+     * whose elements are of a fixed-length type.
+     * But that is too specific a case to bother handling separately.)
+     * */
+    internal fun <T:Any> readObject(input:InputStream, toType: KClass<T>):T {
+        val types:MutableMap<String, KClass<Any>> = mutableMapOf()
+        val values:MutableMap<String, Any> = mutableMapOf()
+        var index = 0
+
+        var itemCount = 0
+        while(if(lengthIfSpecified != null) itemCount < lengthIfSpecified else )
+
+        //throw an error if no constructor could be satisfied (given the names & types of the variables we got)
+        //which creates an instance of this class
+        //Don't check static methods, companion object's functions,
+        //because they might not return an instance containing this data, but rather some compile-time constant,
+        //like BigDecimal.ONE
+    }
+
+    /**Reads an arbitrary number of bytes from the passed [InputStream], until the array is parsed or an error occurs.
+     *
+     * Unlike the `read` methods for value types, we can't pass a ByteArray to this function,
+     * because we don't know in advance how many bytes long the array is.
+     * In those cases finding out its length in bytes would amount to parsing it.
+     *
+     * (Technically, we do know the byte-length of a homogeneous array with a length marker,
+     * whose elements are of a fixed-length type.
+     * But that is too specific a case to bother handling separately.)*/
+    internal fun readArray(inputStream:InputStream):Array<Any?> {
+        //get a buffered input stream, which allows us to 'peek' ahead some bytes
+        val input:BufferedInputStream = if(inputStream is BufferedInputStream) inputStream
+        else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
+        //apparently some hard to find bugs can result from a double-buffered input stream
+
+        val types:MutableList<KClass<Any>> = mutableListOf()
+        val values:MutableList<Any?> = mutableListOf()
+        var index = 0
+        val oneByte = ByteArray(1)
+        input.read(oneByte)
+        val homogeneousType:Char? = if(readChar(oneByte[0]) == HOMOGENEOUS_CONTAINER_TYPE.marker) {
+            //index + 2//increment index past type marker here, so the last expression can be the return type
+            val einBeit = ByteArray(1)
+            input.read(einBeit)
+            val hmm = readChar(einBeit[0])
+            //read the next byte into possibleTypeOrLength, so it's ready to be checked by the next if
+            input.read(oneByte)
+            hmm
+        } else { null }
+
+        val lengthIfSpecified:Long? = if(readChar(oneByte[0]) == CONTAINER_LENGTH.marker) {
+            val len = readLength(input)
+            //read next byte, so the first byte of the first contained value is always pre-consumed.
+            //without doing this, sometime it'd be pre-consumed, and sometimes not, with no way to tell
+            //it wouldn't be naturally preconsumed in this if-branch, but it would in every other
+            input.read(oneByte)
+            len
+        } else { null }
+        //find most recent common ancestor of all the types found in the array
+        if(lengthIfSpecified != null) {
+            //checking for incorrect negative length values is explicitly required, at
+            //http://ubjson.org/developer-resources/#library_req
+            if(lengthIfSpecified < 0) {
+                throw ParseException("array specified a negative length value", 0)
+            }
+            if(lengthIfSpecified > Int.MAX_VALUE) {
+                throw IllegalArgumentException("array length is longer than maximum permitted by JVM:"+lengthIfSpecified)
+            }
+            val readingFunction:(InputStream) -> Any? =
+                if(homogeneousType != null) {
+                    if(homogeneousType == NULL_TYPE.marker) {
+                        return arrayOfNulls<Any?>(lengthIfSpecified.toInt())
+                    }
+                when(homogeneousType) {
+                    NULL_TYPE.marker -> {{null}}
+                    else -> {{null}}
+                }
+            }else {
+                { null }
+            }
+            val data:Array<Any?> = Array<Any?>()
+            for(itemIndex in 0 until lengthIfSpecified) {
+
+            }
+        }else {//there's no array-length field; wait for the array-end marker instead
+            while(readChar(oneByte[0]) != ARRAY_END.marker) {
+
+                input.read(oneByte)
+            }
+
+        }
+
+    }
+
+
+    /**Read the contents of the Int8 from the start of the passed [ByteArray], without a preceding type marker or length.*/
+    internal fun readInt8(b:Byte):Byte {
         return ByteBuffer.wrap(byteArrayOf(b)).order(ByteOrder.BIG_ENDIAN).get()
     }
 
