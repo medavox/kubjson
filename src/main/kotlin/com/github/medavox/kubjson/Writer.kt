@@ -113,8 +113,7 @@ object Writer {
         val typesInArray:Set<KClass<*>?> = array.map { it?.javaClass?.kotlin}.toSet()
         println("types in array: "+typesInArray)
         val homogeneous = if(typesInArray.size > 1) {
-            //if the set.size > 1, use heterogeneous array syntax
-
+            //if there is > 1 type in the whole array, use heterogeneous array syntax
             false
         }else {
             // otherwise, make a homogeneous array of that one type
