@@ -153,24 +153,10 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         //like BigDecimal.ONE
     }
 
-    /**Reads an arbitrary number of bytes from the passed [InputStream], until the array is parsed or an error occurs.
-     *
-     * Unlike the `read` methods for value types, we can't pass a ByteArray to this function,
-     * because we don't know in advance how many bytes long the array is.
-     * In those cases finding out its length in bytes would amount to parsing it.
-     *
-     * (Technically, we do know the byte-length of a homogeneous array with a length marker,
-     * whose elements are of a fixed-length type.
-     * But that is too specific a case to bother handling separately.)*/
-    internal fun readArray(inputStream:InputStream):Array<Any?> {
-        //get a buffered input stream, which allows us to 'peek' ahead some bytes
+    private data class ContainerTypeAndOrLength(val homogeneousType:Char?, val lengthIfSpecified:Long?)
+    private fun checkForContainerTypeAndOrLength(inputStream:InputStream):ContainerTypeAndOrLength {
         val input:BufferedInputStream = if(inputStream is BufferedInputStream) inputStream
-        else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
-        //apparently some hard to find bugs can result from a double-buffered input stream
-
-        val types:MutableList<KClass<Any>> = mutableListOf()
-        val values:MutableList<Any?> = mutableListOf()
-        var index = 0
+                else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
         val oneByte = ByteArray(1)
         input.read(oneByte)
         val homogeneousType:Char? = if(readChar(oneByte[0]) == HOMOGENEOUS_CONTAINER_TYPE.marker) {
@@ -191,9 +177,31 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             input.read(oneByte)
             len
         } else { null }
+        return ContainerTypeAndOrLength(homogeneousType, lengthIfSpecified)
+    }
+
+    /**Reads an arbitrary number of bytes from the passed [InputStream], until the array is parsed or an error occurs.
+     *
+     * Unlike the `read` methods for value types, we can't pass a ByteArray to this function,
+     * because we don't know in advance how many bytes long the array is.
+     * In those cases finding out its length in bytes would amount to parsing it.
+     *
+     * (Technically, we do know the byte-length of a homogeneous array with a length marker,
+     * whose elements are of a fixed-length type.
+     * But that is too specific a case to bother handling separately.)*/
+    internal fun readArray(inputStream:InputStream):Array<Any?> {
+        //get a buffered input stream, which allows us to 'peek' ahead some bytes
+        val input:BufferedInputStream = if(inputStream is BufferedInputStream) inputStream
+        else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
+        //apparently some hard to find bugs can result from a double-buffered input stream
+
+        val types:MutableList<KClass<Any>> = mutableListOf()
+        val values:MutableList<Any?> = mutableListOf()
+        var index = 0
+        val (homogeneousType, lengthIfSpecified) = checkForContainerTypeAndOrLength(inputStream)
         //find most recent common ancestor of all the types found in the array
         if(lengthIfSpecified != null) {
-            //checking for incorrect negative length values is explicitly required, at
+            //checking for incorrectly negative length values is explicitly required, at
             //http://ubjson.org/developer-resources/#library_req
             if(lengthIfSpecified < 0) {
                 throw ParseException("array specified a negative length value", 0)
@@ -208,7 +216,11 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
                     }
                 when(homogeneousType) {
                     NULL_TYPE.marker -> {{null}}
-                    else -> {{null}}
+                    INT32_TYPE.marker -> {{
+
+                        readInt32
+                    }}
+                    else -> {{null}}//fixme: why can't i throw an exception here?
                 }
             }else {
                 { null }
@@ -222,9 +234,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
 
                 input.read(oneByte)
             }
-
         }
-
     }
 
 
