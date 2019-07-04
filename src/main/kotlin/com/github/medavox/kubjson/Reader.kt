@@ -76,7 +76,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             STRING_TYPE.marker -> {
                 val strLength = readLength(inputStream)
                 if(strLength > Int.MAX_VALUE) {
-                    throw IllegalStateException("string is longer than Kotlin's max supported length: $strLength")
+                    throw UnsupportedEncodingException("string is longer than Kotlin's max supported length: $strLength")
                 }
                 val ba = ByteArray(strLength.toInt())
                 read(ba)
@@ -85,7 +85,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             HIGH_PRECISION_NUMBER_TYPE.marker -> {
                 val strLength = readLength(inputStream)
                 if(strLength > Int.MAX_VALUE) {
-                    throw IllegalStateException("string is longer than Kotlin's max supported length: $strLength")
+                    throw UnsupportedEncodingException("High-precision number is longer than Kotlin's max supported length: $strLength")
                 }
                 val ba = ByteArray(strLength.toInt())
                 read(ba)
