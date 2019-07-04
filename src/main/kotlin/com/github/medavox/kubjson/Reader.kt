@@ -3,6 +3,7 @@ package com.github.medavox.kubjson
 import com.github.medavox.kubjson.Markers.*
 import java.io.BufferedInputStream
 import java.io.InputStream
+import java.io.UnsupportedEncodingException
 import java.math.BigDecimal
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -153,7 +154,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         //like BigDecimal.ONE
     }
 
-    private data class ContainerTypeAndOrLength(val homogeneousType:Char?, val lengthIfSpecified:Long?)
+    private data class ContainerTypeAndOrLength(val homogeneousType:Char?, val lengthIfSpecified:Long?, val nextByte:Byte)
     private fun checkForContainerTypeAndOrLength(inputStream:InputStream):ContainerTypeAndOrLength {
         val input:BufferedInputStream = if(inputStream is BufferedInputStream) inputStream
                 else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
@@ -169,15 +170,20 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             hmm
         } else { null }
 
-        val lengthIfSpecified:Long? = if(readChar(oneByte[0]) == CONTAINER_LENGTH.marker) {
-            val len = readLength(input)
-            //read next byte, so the first byte of the first contained value is always pre-consumed.
-            //without doing this, sometime it'd be pre-consumed, and sometimes not, with no way to tell
-            //it wouldn't be naturally preconsumed in this if-branch, but it would in every other
-            input.read(oneByte)
-            len
-        } else { null }
-        return ContainerTypeAndOrLength(homogeneousType, lengthIfSpecified)
+        val lengthIfSpecified:Long? = when {
+            readChar(oneByte[0]) == CONTAINER_LENGTH.marker -> {
+                val len = readLength(input)
+                //read next byte, so the first byte of the first contained value is always pre-consumed.
+                //without doing this, sometime it'd be pre-consumed, and sometimes not, with no way to tell
+                //it wouldn't be naturally preconsumed in this if-branch, but it would in every other
+                input.read(oneByte)
+                len
+            }
+            homogeneousType == null -> null
+            else -> throw IllegalArgumentException("Container type marker must not be specified without a length marker")
+        }
+
+        return ContainerTypeAndOrLength(homogeneousType, lengthIfSpecified, oneByte[0])
     }
 
     /**Reads an arbitrary number of bytes from the passed [InputStream], until the array is parsed or an error occurs.
@@ -189,52 +195,128 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
      * (Technically, we do know the byte-length of a homogeneous array with a length marker,
      * whose elements are of a fixed-length type.
      * But that is too specific a case to bother handling separately.)*/
-    internal fun readArray(inputStream:InputStream):Array<Any?> {
+    fun readArray(inputStream:InputStream):Array<Any?> {
         //get a buffered input stream, which allows us to 'peek' ahead some bytes
-        val input:BufferedInputStream = if(inputStream is BufferedInputStream) inputStream
-        else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
+        //val input:BufferedInputStream = if(inputStream is BufferedInputStream) inputStream
+        //else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
         //apparently some hard to find bugs can result from a double-buffered input stream
 
         val types:MutableList<KClass<Any>> = mutableListOf()
         val values:MutableList<Any?> = mutableListOf()
         var index = 0
-        val (homogeneousType, lengthIfSpecified) = checkForContainerTypeAndOrLength(inputStream)
-        //find most recent common ancestor of all the types found in the array
+        val einByt = byteArrayOf()
+        val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength(inputStream)
+        var nextByte:Byte = firstByte
+        //todo:find most recent common ancestor of all the types found in the array
+
         if(lengthIfSpecified != null) {
             //checking for incorrectly negative length values is explicitly required, at
             //http://ubjson.org/developer-resources/#library_req
-            if(lengthIfSpecified < 0) {
+            if (lengthIfSpecified < 0) {
                 throw ParseException("array specified a negative length value", 0)
             }
-            if(lengthIfSpecified > Int.MAX_VALUE) {
-                throw IllegalArgumentException("array length is longer than maximum permitted by JVM:"+lengthIfSpecified)
-            }
-            val readingFunction:(InputStream) -> Any? =
-                if(homogeneousType != null) {
-                    if(homogeneousType == NULL_TYPE.marker) {
-                        return arrayOfNulls<Any?>(lengthIfSpecified.toInt())
-                    }
-                when(homogeneousType) {
-                    NULL_TYPE.marker -> {{null}}
-                    INT32_TYPE.marker -> {{
-
-                        readInt32
-                    }}
-                    else -> {{null}}//fixme: why can't i throw an exception here?
-                }
-            }else {
-                { null }
-            }
-            val data:Array<Any?> = Array<Any?>()
-            for(itemIndex in 0 until lengthIfSpecified) {
-
-            }
-        }else {//there's no array-length field; wait for the array-end marker instead
-            while(readChar(oneByte[0]) != ARRAY_END.marker) {
-
-                input.read(oneByte)
+            if (lengthIfSpecified > Int.MAX_VALUE) {
+                throw UnsupportedEncodingException("array length is longer than maximum supported by JVM: $lengthIfSpecified")
             }
         }
+
+        //define end conditions
+        val unfinished:() -> Boolean = if(lengthIfSpecified != null) {{
+            index < lengthIfSpecified
+        }}else {{
+            readChar(nextByte) == ARRAY_END.marker
+        }}
+
+        //define loop step/increment
+        val step:() -> Unit = if(lengthIfSpecified != null) {{
+            index++
+        }} else {{
+            inputStream.read(einByt)
+            nextByte = einByt[0]
+        }}
+        while(unfinished()) {
+            val typeChar:Char = if(homogeneousType != null) homogeneousType else readChar(nextByte)
+            val data = when(homogeneousType) {
+                NULL_TYPE.marker -> null
+                TRUE_TYPE.marker -> true
+                FALSE_TYPE.marker -> false
+                NO_OP_TYPE.marker -> Unit //fixme: returning Unit implicitly casts to any
+                INT8_TYPE.marker -> {
+                    val next1Byte = ByteArray(1)
+                    inputStream.read(next1Byte)
+                    readInt8(next1Byte[0])
+                }
+                UINT8_TYPE.marker -> {
+                    val next1Byte = ByteArray(1)
+                    inputStream.read(next1Byte)
+                    readUint8(next1Byte[0])
+                }
+                INT16_TYPE.marker -> {
+                    val next2Bytes = ByteArray(2)
+                    inputStream.read(next2Bytes)
+                    readInt16(next2Bytes)
+                }
+                INT32_TYPE.marker -> {
+                    val next4Bytes = ByteArray(4)
+                    inputStream.read(next4Bytes)
+                    readInt32(next4Bytes)
+                }
+                INT64_TYPE.marker -> {
+                    val next8Bytes = ByteArray(8)
+                    inputStream.read(next8Bytes)
+                    readInt64(next8Bytes)
+                }
+                FLOAT32_TYPE.marker -> {
+                    val nextBytes = ByteArray(4)
+                    inputStream.read(nextBytes)
+                    readFloat32(nextBytes)
+                }
+                FLOAT64_TYPE.marker -> {
+                    val nextBytes = ByteArray(8)
+                    inputStream.read(nextBytes)
+                    readFloat64(nextBytes)
+                }
+                CHAR_TYPE.marker -> {
+                    val next1Byte = ByteArray(1)
+                    inputStream.read(next1Byte)
+                    readChar(next1Byte[0])
+                }
+                STRING_TYPE.marker -> {
+                    val stringLength = readLength(inputStream)
+                    if (stringLength < 0) {
+                        throw ParseException("String specified a negative length value", 0)
+                    }
+                    if(stringLength > Int.MAX_VALUE) {
+                        throw UnsupportedEncodingException("String length is longer than maximum supported by JVM: $stringLength")
+                    }
+                    val nextBytes = ByteArray(stringLength.toInt())
+                    inputStream.read(nextBytes)
+                    readString(nextBytes)
+                }
+                HIGH_PRECISION_NUMBER_TYPE.marker -> {
+                    val stringLength = readLength(inputStream)
+                    if (stringLength < 0) {
+                        throw ParseException("High-precision number specified a negative length value", 0)
+                    }
+                    if(stringLength > Int.MAX_VALUE) {
+                        throw UnsupportedEncodingException("High-precision number length is longer than maximum supported by JVM: $stringLength")
+                    }
+                    val nextBytes = ByteArray(stringLength.toInt())
+                    inputStream.read(nextBytes)
+                    readHighPrecisionNumber(nextBytes)
+                }
+                OBJECT_START.marker -> {
+                    readObject(inputStream)
+                }
+                ARRAY_START.marker -> {
+                    readArray(inputStream)//oh look recursion. yay. -_-
+                }
+                else -> throw IllegalArgumentException("unexpected char/byte: $nextByte/${readChar(nextByte)}")
+            }
+            values.add(data)
+            step()
+        }
+        return values.toTypedArray()
     }
 
 
