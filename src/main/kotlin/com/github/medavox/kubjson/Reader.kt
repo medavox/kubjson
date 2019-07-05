@@ -8,6 +8,7 @@ import java.math.BigDecimal
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.text.ParseException
+import javax.validation.constraints.Size
 import kotlin.reflect.KClass
 
 class Reader(private val inputStream: InputStream, private val listener: ReaderListener) {
@@ -333,27 +334,27 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
 
     /**Read a UBJSON Int16 value into a JVM Short.
      * @param b a [ByteArray] of the contents (no type marker)*/
-    internal fun readInt16(b:ByteArray):Short {
+    internal fun readInt16(@Size(min=2, max=2)b:ByteArray):Short {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getShort()
     }
 
     /**Read the contents of the Int32 contained at the start of the passed [ByteArray] into a JVM Int(eger),
      * without a preceding type marker or length.*/
-    internal fun readInt32(b:ByteArray):Int {
+    internal fun readInt32(@Size(min=4, max=4)b:ByteArray):Int {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getInt()
     }
 
     /**Read the contents of the Int64 contained at the start of the passed [ByteArray] into a JVM Long,
      * without a preceding type marker or length.*/
-    internal fun readInt64(b:ByteArray):Long {
+    internal fun readInt64(@Size(min=8, max=8)b:ByteArray):Long {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getLong()
     }
 
-    internal fun readFloat32(b:ByteArray):Float {
+    internal fun readFloat32(@Size(min=4, max=4)b:ByteArray):Float {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getFloat()
     }
 
-    internal fun readFloat64(b:ByteArray):Double {
+    internal fun readFloat64(@Size(min=8, max=8)b:ByteArray):Double {
         return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getDouble()
     }
 

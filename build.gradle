@@ -17,6 +17,9 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("org.jetbrains.kotlin:kotlin-reflect:$kotlin_ver")
     testImplementation("junit:junit:4.12")
+    
+    //better validation annotations: JSR 380 implementation
+    implementation "org.hibernate.validator:hibernate-validator:6.0.17.Final"
 }
 
 compileKotlin {
