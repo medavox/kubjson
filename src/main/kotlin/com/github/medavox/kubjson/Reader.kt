@@ -100,7 +100,10 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             OBJECT_START.marker -> {
                 readObject(inputStream)
             }
-            else -> throw IllegalArgumentException("was expecting a UBJSON type marker, but got ${oneByte[0]} = '${oneByte[0].toChar()}'")
+            ARRAY_START.marker -> {
+                readArray(inputStream)//oh look recursion. yay. -_-
+            }
+            else -> throw IllegalArgumentException("unexpected char in type marker: $typeChar")
         }
     }
 
