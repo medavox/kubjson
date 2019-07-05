@@ -25,75 +25,80 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
     //using a listener is no good, because it can't handle container types:
     // how would you tell if onBoolean() was being called for a value in the current type,
     // or a type inside that type?
-    fun InputStream.readNext():Any? {
-        val oneByte:ByteArray = byteArrayOf(0)
-        read(oneByte)
-        return when(readChar(oneByte[0])) {
+    fun readNext(inputStream: InputStream, typeChar: Char):Any? {
+        return when(typeChar) {
             NULL_TYPE.marker -> null
-            NO_OP_TYPE.marker -> Unit
             TRUE_TYPE.marker -> true
             FALSE_TYPE.marker -> false
-
+            NO_OP_TYPE.marker -> Unit //fixme: returning Unit implicitly casts to any
             INT8_TYPE.marker -> {
-                val ba = ByteArray(1)
-                read(ba)
-                readInt8(ba[0])
+                val next1Byte = ByteArray(1)
+                inputStream.read(next1Byte)
+                readInt8(next1Byte[0])
             }
             UINT8_TYPE.marker -> {
-                val ba = ByteArray(1)
-                read(ba)
-                readUint8(ba[0])
+                val next1Byte = ByteArray(1)
+                inputStream.read(next1Byte)
+                readUint8(next1Byte[0])
             }
             INT16_TYPE.marker -> {
-                val ba = ByteArray(2)
-                read(ba)
-                readInt16(ba)
+                val next2Bytes = ByteArray(2)
+                inputStream.read(next2Bytes)
+                readInt16(next2Bytes)
             }
             INT32_TYPE.marker -> {
-                val ba = ByteArray(4)
-                read(ba)
-                readInt32(ba)
+                val next4Bytes = ByteArray(4)
+                inputStream.read(next4Bytes)
+                readInt32(next4Bytes)
             }
             INT64_TYPE.marker -> {
-                val ba = ByteArray(8)
-                read(ba)
-                readInt64(ba)
+                val next8Bytes = ByteArray(8)
+                inputStream.read(next8Bytes)
+                readInt64(next8Bytes)
             }
             FLOAT32_TYPE.marker -> {
-                val ba = ByteArray(4)
-                read(ba)
-                readFloat32(ba)
+                val nextBytes = ByteArray(4)
+                inputStream.read(nextBytes)
+                readFloat32(nextBytes)
             }
             FLOAT64_TYPE.marker -> {
-                val ba = ByteArray(8)
-                read(ba)
-                readFloat64(ba)
+                val nextBytes = ByteArray(8)
+                inputStream.read(nextBytes)
+                readFloat64(nextBytes)
             }
             CHAR_TYPE.marker -> {
-                val ba = ByteArray(1)
-                read(ba)
-                readChar(ba[0])
+                val next1Byte = ByteArray(1)
+                inputStream.read(next1Byte)
+                readChar(next1Byte[0])
             }
             STRING_TYPE.marker -> {
                 val strLength = readLength(inputStream)
-                if(strLength > Int.MAX_VALUE) {
-                    throw UnsupportedEncodingException("string is longer than Kotlin's max supported length: $strLength")
+                if (strLength < 0) {
+                    throw ParseException("String specified a negative length value", 0)
                 }
-                val ba = ByteArray(strLength.toInt())
-                read(ba)
-                readString(ba)
+                if(strLength > Int.MAX_VALUE) {
+                    throw UnsupportedEncodingException("String length is longer than maximum supported by JVM:" +
+                            strLength)
+                }
+                val nextBytes = ByteArray(strLength.toInt())
+                inputStream.read(nextBytes)
+                readString(nextBytes)
             }
             HIGH_PRECISION_NUMBER_TYPE.marker -> {
                 val strLength = readLength(inputStream)
-                if(strLength > Int.MAX_VALUE) {
-                    throw UnsupportedEncodingException("High-precision number is longer than Kotlin's max supported length: $strLength")
+                if (strLength < 0) {
+                    throw ParseException("High-precision number specified a negative length value", 0)
                 }
-                val ba = ByteArray(strLength.toInt())
-                read(ba)
-                readHighPrecisionNumber(ba)
+                if(strLength > Int.MAX_VALUE) {
+                    throw UnsupportedEncodingException("High-precision number length is longer than maximum" +
+                            " supported by JVM: $strLength")
+                }
+                val nextBytes = ByteArray(strLength.toInt())
+                inputStream.read(nextBytes)
+                readHighPrecisionNumber(nextBytes)
             }
             OBJECT_START.marker -> {
-
+                readObject(inputStream)
             }
             else -> throw IllegalArgumentException("was expecting a UBJSON type marker, but got ${oneByte[0]} = '${oneByte[0].toChar()}'")
         }
@@ -130,7 +135,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         }
     }
 
-    /**Reads an arbitrary number of bytes from the passed [InputStream], until the object is parsed or an error occurs.
+    /**Reads an arbitrary number of bytes from the passed [InputStream], until an object is parsed or an error occurs.
      *
      * Unlike the `read` methods for value types, we can't pass a ByteArray to this function,
      * because we don't know in advance how many bytes long the object is.
@@ -211,7 +216,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         //todo:find most recent common ancestor of all the types found in the array
 
         if(lengthIfSpecified != null) {
-            //checking for incorrectly negative length values is explicitly required, at
+            //the UBJSON spec explicitly requires checking for incorrectly negative length values:
             //http://ubjson.org/developer-resources/#library_req
             if (lengthIfSpecified < 0) {
                 throw ParseException("array specified a negative length value", 0)
@@ -235,85 +240,9 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             inputStream.read(einByt)
             nextByte = einByt[0]
         }}
+        //loop through the array
         while(unfinished()) {
-            val typeChar:Char = if(homogeneousType != null) homogeneousType else readChar(nextByte)
-            val data = when(homogeneousType) {
-                NULL_TYPE.marker -> null
-                TRUE_TYPE.marker -> true
-                FALSE_TYPE.marker -> false
-                NO_OP_TYPE.marker -> Unit //fixme: returning Unit implicitly casts to any
-                INT8_TYPE.marker -> {
-                    val next1Byte = ByteArray(1)
-                    inputStream.read(next1Byte)
-                    readInt8(next1Byte[0])
-                }
-                UINT8_TYPE.marker -> {
-                    val next1Byte = ByteArray(1)
-                    inputStream.read(next1Byte)
-                    readUint8(next1Byte[0])
-                }
-                INT16_TYPE.marker -> {
-                    val next2Bytes = ByteArray(2)
-                    inputStream.read(next2Bytes)
-                    readInt16(next2Bytes)
-                }
-                INT32_TYPE.marker -> {
-                    val next4Bytes = ByteArray(4)
-                    inputStream.read(next4Bytes)
-                    readInt32(next4Bytes)
-                }
-                INT64_TYPE.marker -> {
-                    val next8Bytes = ByteArray(8)
-                    inputStream.read(next8Bytes)
-                    readInt64(next8Bytes)
-                }
-                FLOAT32_TYPE.marker -> {
-                    val nextBytes = ByteArray(4)
-                    inputStream.read(nextBytes)
-                    readFloat32(nextBytes)
-                }
-                FLOAT64_TYPE.marker -> {
-                    val nextBytes = ByteArray(8)
-                    inputStream.read(nextBytes)
-                    readFloat64(nextBytes)
-                }
-                CHAR_TYPE.marker -> {
-                    val next1Byte = ByteArray(1)
-                    inputStream.read(next1Byte)
-                    readChar(next1Byte[0])
-                }
-                STRING_TYPE.marker -> {
-                    val stringLength = readLength(inputStream)
-                    if (stringLength < 0) {
-                        throw ParseException("String specified a negative length value", 0)
-                    }
-                    if(stringLength > Int.MAX_VALUE) {
-                        throw UnsupportedEncodingException("String length is longer than maximum supported by JVM: $stringLength")
-                    }
-                    val nextBytes = ByteArray(stringLength.toInt())
-                    inputStream.read(nextBytes)
-                    readString(nextBytes)
-                }
-                HIGH_PRECISION_NUMBER_TYPE.marker -> {
-                    val stringLength = readLength(inputStream)
-                    if (stringLength < 0) {
-                        throw ParseException("High-precision number specified a negative length value", 0)
-                    }
-                    if(stringLength > Int.MAX_VALUE) {
-                        throw UnsupportedEncodingException("High-precision number length is longer than maximum supported by JVM: $stringLength")
-                    }
-                    val nextBytes = ByteArray(stringLength.toInt())
-                    inputStream.read(nextBytes)
-                    readHighPrecisionNumber(nextBytes)
-                }
-                OBJECT_START.marker -> {
-                    readObject(inputStream)
-                }
-                ARRAY_START.marker -> {
-                    readArray(inputStream)//oh look recursion. yay. -_-
-                }
-                else -> throw IllegalArgumentException("unexpected char/byte: $nextByte/${readChar(nextByte)}")
-            }
+            val data = readNext(inputStream, homogeneousType ?: readChar(nextByte))
             values.add(data)
             step()
         }
