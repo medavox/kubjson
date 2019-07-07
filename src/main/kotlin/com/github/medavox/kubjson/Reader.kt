@@ -204,14 +204,9 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
      * (Technically, we do know the byte-length of a homogeneous array with a length marker,
      * whose elements are of a fixed-length type.
      * But that is too specific a case to bother handling separately.)*/
-    fun readArray(inputStream:InputStream):Array<Any?> {
-        //get a buffered input stream, which allows us to 'peek' ahead some bytes
-        //val input:BufferedInputStream = if(inputStream is BufferedInputStream) inputStream
-        //else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
-        //apparently some hard to find bugs can result from a double-buffered input stream
-
-        val types:MutableList<KClass<Any>> = mutableListOf()
+    fun readArray(inputStream:InputStream):Array<out Any?> {
         val values:MutableList<Any?> = mutableListOf()
+
         var index = 0
         val einByt = byteArrayOf()
         val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength(inputStream)
@@ -249,7 +244,36 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             values.add(data)
             step()
         }
-        return values.toTypedArray()
+        //cast array to a more specific type
+        val returnArray:Array<out Any?> = if(homogeneousType != null) {
+            //we've already been told the type of all elements in this array, so use that
+            when(homogeneousType) {
+                NULL_TYPE.marker -> values.toTypedArray()
+                TRUE_TYPE.marker, FALSE_TYPE.marker -> values.toTypedArray() as Array<Boolean>
+                NO_OP_TYPE.marker -> values.toTypedArray() as Array<Unit> //fixme: returning Unit implicitly casts to any
+                INT8_TYPE.marker -> values.toTypedArray() as Array<Byte>
+                UINT8_TYPE.marker -> values.toTypedArray()
+                INT16_TYPE.marker -> values.toTypedArray() as Array<Short>
+                INT32_TYPE.marker -> values.toTypedArray() as Array<Int>
+                INT64_TYPE.marker -> values.toTypedArray() as Array<Long>
+                FLOAT32_TYPE.marker -> values.toTypedArray() as Array<Float>
+                FLOAT64_TYPE.marker -> values.toTypedArray() as Array<Double>
+                CHAR_TYPE.marker -> values.toTypedArray() as Array<Char>
+                STRING_TYPE.marker -> values.toTypedArray() as Array<String>
+                HIGH_PRECISION_NUMBER_TYPE.marker -> values.toTypedArray() as Array<BigDecimal>
+                OBJECT_START.marker -> values.toTypedArray() as Array<Any>//non-null, because a red object is guaranteed to exist
+                ARRAY_START.marker -> values.toTypedArray() as Array<Array<Any?>>//fixme
+                else -> throw IllegalArgumentException("unexpected char/byte in type marker: " +
+                        "$nextByte/${readChar(nextByte)}")
+            }
+        }else {
+            //there is no homogeneous type marker, so
+            //manually find most specific common ancestor of all the types found in the array, and return it as that
+            values.toTypedArray()
+        }
+        val types:MutableList<KClass<Any>> = mutableListOf()
+
+        return returnArray
     }
 
 
