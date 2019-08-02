@@ -24,6 +24,7 @@ object Writer {
     fun writeObject(obj:Any):ByteArray {
         //don't write object tag-marker, by convention with other methods
         var out = byteArrayOf()
+        val p = Printa("writeObject")
 
         val cls:KClass<Any> = obj.javaClass.kotlin
         //val cls:KClass<Any> = obj::class as KClass<Any>//alternative way of getting a KClass<Any>, not KCLASS<out Any>
@@ -42,7 +43,7 @@ object Writer {
         //write the name, type and value of every property
         for(prop:KProperty1<Any, *> in props) {
             val typeSurrogate = (prop.returnType.classifier as KClass<*>)//.objectInstance
-            println("${prop.name}:"+typeSurrogate.simpleName+" = "+prop.get(obj))
+            p.rintln("${prop.name}:"+typeSurrogate.simpleName+" = "+prop.get(obj))
 
             //write variable name & value
             out += writeString(prop.name) + writeAnything(prop.get(obj), true)
@@ -50,11 +51,10 @@ object Writer {
         return out
     }
 
-
-
     /**Unlike most other write-methods here, this method precedes the written content with its type marker*/
     internal fun writeAnything(any:Any?, writeTypeMarker:Boolean=true):ByteArray {
         data class TypeAndContent(val typeMarker:ByteArray, val content:ByteArray)
+        val p = Printa("writeAnything")
         //just write a null tag if the value is null; type info will just have to be omitted
         if(any == null) {
             //println("NULL")
@@ -96,7 +96,7 @@ object Writer {
                 isInstance(charArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as CharArray))
                 isInstance(emptyArray<Any?>()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as Array<Any?>))
                 else -> {
-                    println("UNHANDLED TYPE:" + typeSurrogate)
+                    p.rintln("UNHANDLED TYPE:" + typeSurrogate)
                     //todo: try to serialise unknown types as an object
                     TypeAndContent(byteArrayOf(), byteArrayOf())
                 }
@@ -124,11 +124,11 @@ object Writer {
 
         //either way, write array length (we always write array length)
         outputBytes += writeMarker(CONTAINER_LENGTH) + writeLength(array.size)
-
-        println("array type:"+array::class.typeParameters)
+        val p = Printa("writeArray")
+        p.rintln("array type:"+array::class.typeParameters)
         for(element in array) {
-            println("element: "+element)
-            println("type: "+element?.javaClass?.simpleName)
+            p.rintln("element: "+element)
+            p.rintln("type: "+element?.javaClass?.simpleName)
             outputBytes += writeAnything(element, homogeneous)
         }
         return outputBytes

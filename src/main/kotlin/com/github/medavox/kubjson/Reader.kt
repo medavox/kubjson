@@ -150,12 +150,13 @@ object Reader {
      * But that is too specific a case to bother handling separately.) */
     internal fun <T:Any> readObject(input:InputStream, toType: KClass<T>):T {
         val map:Map<String, Any?> = readObjectWithoutType(input)
-        println("map:")
-        map.forEach { println(it) }
+        val p = Printa("readObject")
+        p.rintln("map:")
+        map.forEach { p.rintln(it) }
         //option a: manually set each of the instance's properties with elements from the map,
         //whose name and type match
-        println("constructors:")
-        toType.constructors.forEach { println(it) }
+        p.rintln("constructors:")
+        toType.constructors.forEach { p.rintln(it) }
 
         //option B: find a constructor whose name/type pairs all match entries in the map
         construc@ for(constructor in toType.constructors) {
@@ -167,11 +168,11 @@ object Reader {
                     val candidate = map.get(param.name)
                     val mapClass:KClassifier? = if(candidate != null){candidate::class}else{null}
                     val areEqual:Boolean = paramClass == mapClass
-                    println("parameter classifier: $paramClass")
-                    println("map entry classifier: $mapClass")
-                    println("types are equal: $areEqual")
+                    p.rintln("parameter classifier: $paramClass")
+                    p.rintln("map entry classifier: $mapClass")
+                    p.rintln("types are equal: $areEqual")
                 }else {
-                    System.err.println("map doesn't contain a param named \"${param.name}\" for this constructor, moving on...")
+                    p.rintln("map doesn't contain a param named \"${param.name}\" for this constructor, moving on...")
                     //if the map contains no entry with this parameter's name,
                     //then that disqualifies this constructor,
                     //so move on to the next constructor, if any
@@ -192,10 +193,10 @@ object Reader {
      * This method writes the values to a Map<String, Any?>, without defining its type more explicitly.*/
     internal fun readObjectWithoutType(inputStream:InputStream):Map<String, Any?> {
         val values:MutableMap<String, Any?> = mutableMapOf()
-
+        val p = Printa("readObjectWithoutType")
         val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength(inputStream)
         var nextByte:Byte = firstByte
-        lengthIfSpecified?.let { println("length: $it") }
+        lengthIfSpecified?.let { p.rintln("length: $it") }
         var index = 0
         val einByt = byteArrayOf()
         //define end conditions
@@ -216,7 +217,7 @@ object Reader {
         while(unfinished()) {
             val name:String = readAny(inputStream, STRING_TYPE.marker) as String
             val data = readAny(inputStream, homogeneousType ?: readChar(nextByte))
-            println("adding: {$name | $data}")
+            p.rintln("adding: {$name | $data}")
             values.put(name, data)
             step()
         }
