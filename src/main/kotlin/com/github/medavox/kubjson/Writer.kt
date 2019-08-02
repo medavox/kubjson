@@ -328,7 +328,7 @@ object Writer {
                     "which a UBJSON 8-bit char cannot store. "+
                     "Use an UBSJON String instead for UTF-8 support, which includes 16-bit-wide characters.")
         } else {
-            return bb.array()
+            return byteArrayOf(bb[1])
         }
     }
     internal fun writeString(string:String):ByteArray {
