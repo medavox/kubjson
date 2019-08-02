@@ -10,8 +10,9 @@ import java.nio.ByteOrder
 import java.text.ParseException
 import javax.validation.constraints.Size
 import kotlin.reflect.KClass
+import kotlin.reflect.KClassifier
 
-class Reader(private val inputStream: InputStream, private val listener: ReaderListener) {
+object Reader {
 
     //All integer types (int8, uint8, int16, int32 and int64) are written in most-significant-bit order
     // (high byte written first, aka “big endian“).
@@ -149,16 +150,34 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
      * But that is too specific a case to bother handling separately.) */
     internal fun <T:Any> readObject(input:InputStream, toType: KClass<T>):T {
         val map:Map<String, Any?> = readObjectWithoutType(input)
-
+        println("map:")
+        map.forEach { println(it) }
         //option a: manually set each of the instance's properties with elements from the map,
         //whose name and type match
+        println("constructors:")
+        toType.constructors.forEach { println(it) }
 
-        //option B: find a constructor which the contents of the map has all the types of.
-        //this might not work properly:
-        //eg  just because both a parameter is type Long doesn't mean it takes a unix epoch date
-        //or what if a constructor takes multiple parameters of the same type?
-        for(constructor in toType.constructors) {
-            constructor.
+        //option B: find a constructor whose name/type pairs all match entries in the map
+        construc@ for(constructor in toType.constructors) {
+            for(param in constructor.parameters) {
+                if(map.containsKey(param.name)) {
+                    //check it's the correct type,
+                    //or can be cast to the correct type
+                    val paramClass:KClassifier? = param.type.classifier
+                    val candidate = map.get(param.name)
+                    val mapClass:KClassifier? = if(candidate != null){candidate::class}else{null}
+                    val areEqual:Boolean = paramClass == mapClass
+                    println("parameter classifier: $paramClass")
+                    println("map entry classifier: $mapClass")
+                    println("types are equal: $areEqual")
+                }else {
+                    System.err.println("map doesn't contain a param named \"${param.name}\" for this constructor, moving on...")
+                    //if the map contains no entry with this parameter's name,
+                    //then that disqualifies this constructor,
+                    //so move on to the next constructor, if any
+                    continue@construc
+                }
+            }
         }
 
         //throw an exception if no constructor could be satisfied (given the names & types of the variables we got)
@@ -166,16 +185,17 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         //Don't check static methods, companion object's functions,
         //because they might not return an instance containing this data, but rather some compile-time constant,
         //like BigDecimal.ONE
+        TODO()
     }
 
     /** an arbitrary number of bytes from the passed [InputStream], until an object is parsed or an error occurs.
      * This method writes the values to a Map<String, Any?>, without defining its type more explicitly.*/
-    internal fun readObjectWithoutType(input:InputStream):Map<String, Any?> {
+    internal fun readObjectWithoutType(inputStream:InputStream):Map<String, Any?> {
         val values:MutableMap<String, Any?> = mutableMapOf()
 
         val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength(inputStream)
         var nextByte:Byte = firstByte
-
+        lengthIfSpecified?.let { println("length: $it") }
         var index = 0
         val einByt = byteArrayOf()
         //define end conditions
@@ -196,6 +216,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         while(unfinished()) {
             val name:String = readAny(inputStream, STRING_TYPE.marker) as String
             val data = readAny(inputStream, homogeneousType ?: readChar(nextByte))
+            println("adding: {$name | $data}")
             values.put(name, data)
             step()
         }
@@ -287,40 +308,38 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             step()
         }
         //cast array to a more specific type
-        val returnArray:Array<out Any?> = if(homogeneousType != null) {
-            //we've already been told the type of all elements in this array, so use that
-            when(homogeneousType) {
-                NULL_TYPE.marker -> values.toTypedArray()
-                TRUE_TYPE.marker, FALSE_TYPE.marker -> values.toTypedArray() as Array<Boolean>
-                NO_OP_TYPE.marker -> values.toTypedArray() as Array<Unit> //fixme: returning Unit implicitly casts to any
-                INT8_TYPE.marker -> values.toTypedArray() as Array<Byte>
-                UINT8_TYPE.marker -> values.toTypedArray()
-                INT16_TYPE.marker -> values.toTypedArray() as Array<Short>
-                INT32_TYPE.marker -> values.toTypedArray() as Array<Int>
-                INT64_TYPE.marker -> values.toTypedArray() as Array<Long>
-                FLOAT32_TYPE.marker -> values.toTypedArray() as Array<Float>
-                FLOAT64_TYPE.marker -> values.toTypedArray() as Array<Double>
-                CHAR_TYPE.marker -> values.toTypedArray() as Array<Char>
-                STRING_TYPE.marker -> values.toTypedArray() as Array<String>
-                HIGH_PRECISION_NUMBER_TYPE.marker -> values.toTypedArray() as Array<BigDecimal>
-                OBJECT_START.marker -> values.toTypedArray() as Array<Any>//non-null, because a red object is guaranteed to exist
-                ARRAY_START.marker -> values.toTypedArray() as Array<Array<Any?>>//fixme
-                else -> throw IllegalArgumentException("unexpected char/byte in type marker: " +
-                        "$nextByte/${readChar(nextByte)}")
+        val returnArray:Array<out Any?> = when(homogeneousType) {
+            //if we've already been told the type of all elements in this array, use that
+            NULL_TYPE.marker -> values.toTypedArray()
+            TRUE_TYPE.marker, FALSE_TYPE.marker -> values.toTypedArray() as Array<Boolean>
+            NO_OP_TYPE.marker -> values.toTypedArray() as Array<Unit> //fixme: returning Unit implicitly casts to any
+            INT8_TYPE.marker -> values.toTypedArray() as Array<Byte>
+            UINT8_TYPE.marker -> values.toTypedArray()//fixme:choose a type
+            INT16_TYPE.marker -> values.toTypedArray() as Array<Short>
+            INT32_TYPE.marker -> values.toTypedArray() as Array<Int>
+            INT64_TYPE.marker -> values.toTypedArray() as Array<Long>
+            FLOAT32_TYPE.marker -> values.toTypedArray() as Array<Float>
+            FLOAT64_TYPE.marker -> values.toTypedArray() as Array<Double>
+            CHAR_TYPE.marker -> values.toTypedArray() as Array<Char>
+            STRING_TYPE.marker -> values.toTypedArray() as Array<String>
+            HIGH_PRECISION_NUMBER_TYPE.marker -> values.toTypedArray() as Array<BigDecimal>
+            OBJECT_START.marker -> values.toTypedArray() as Array<Any>//non-null, because a red object is guaranteed to exist
+            ARRAY_START.marker -> values.toTypedArray() as Array<Array<Any?>>//fixme
+            null -> {
+                //there is no homogeneous type marker, so
+                //manually find most specific common ancestor of all the types found in the array, and return it as that
+                val typesInArray:Set<KClass<*>?> = values.map { it?.javaClass?.kotlin}.toSet()
+                //println("types in array: "+typesInArray)
+                if(typesInArray.size > 1) {
+                    //if there is > 1 type in the whole array, use heterogeneous array syntax
+                }else {
+                    // otherwise, make a homogeneous array of that one type
+                }
+                values.toTypedArray()
             }
-        }else {
-            //there is no homogeneous type marker, so
-            //manually find most specific common ancestor of all the types found in the array, and return it as that
-            val typesInArray:Set<KClass<*>?> = values.map { it?.javaClass?.kotlin}.toSet()
-            //println("types in array: "+typesInArray)
-            if(typesInArray.size > 1) {
-                //if there is > 1 type in the whole array, use heterogeneous array syntax
-            }else {
-                // otherwise, make a homogeneous array of that one type
-            }
-            values.toTypedArray()
+            else -> throw IllegalArgumentException("unexpected char/byte in type marker: " +
+                    "$nextByte/${readChar(nextByte)}")
         }
-
         return returnArray
     }
 
