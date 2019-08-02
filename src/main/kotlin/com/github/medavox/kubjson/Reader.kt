@@ -25,7 +25,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
     //using a listener is no good, because it can't handle container types:
     // how would you tell if onBoolean() was being called for a value in the current type,
     // or a type inside that type?
-    fun readNext(inputStream: InputStream, typeChar: Char):Any? {
+    fun readAny(inputStream: InputStream, typeChar: Char):Any? {
         return when(typeChar) {
             NULL_TYPE.marker -> null
             TRUE_TYPE.marker -> true
@@ -98,7 +98,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
                 readHighPrecisionNumber(nextBytes)
             }
             OBJECT_START.marker -> {
-                readObject(inputStream)
+                readObjectWithoutType(inputStream)
             }
             ARRAY_START.marker -> {
                 readArray(inputStream)//oh look recursion. yay. -_-
@@ -146,22 +146,62 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
      *
      * (Technically, we do know the byte-length of a homogeneous object with a length marker,
      * whose elements are of a fixed-length type.
-     * But that is too specific a case to bother handling separately.)
-     * */
+     * But that is too specific a case to bother handling separately.) */
     internal fun <T:Any> readObject(input:InputStream, toType: KClass<T>):T {
-        val types:MutableMap<String, KClass<Any>> = mutableMapOf()
-        val values:MutableMap<String, Any> = mutableMapOf()
-        var index = 0
+        val map:Map<String, Any?> = readObjectWithoutType(input)
 
-        var itemCount = 0
-        while(if(lengthIfSpecified != null) itemCount < lengthIfSpecified else )
+        //option a: manually set each of the instance's properties with elements from the map,
+        //whose name and type match
 
-        //throw an error if no constructor could be satisfied (given the names & types of the variables we got)
+        //option B: find a constructor which the contents of the map has all the types of.
+        //this might not work properly:
+        //eg  just because both a parameter is type Long doesn't mean it takes a unix epoch date
+        //or what if a constructor takes multiple parameters of the same type?
+        for(constructor in toType.constructors) {
+            constructor.
+        }
+
+        //throw an exception if no constructor could be satisfied (given the names & types of the variables we got)
         //which creates an instance of this class
         //Don't check static methods, companion object's functions,
         //because they might not return an instance containing this data, but rather some compile-time constant,
         //like BigDecimal.ONE
     }
+
+    /** an arbitrary number of bytes from the passed [InputStream], until an object is parsed or an error occurs.
+     * This method writes the values to a Map<String, Any?>, without defining its type more explicitly.*/
+    internal fun readObjectWithoutType(input:InputStream):Map<String, Any?> {
+        val values:MutableMap<String, Any?> = mutableMapOf()
+
+        val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength(inputStream)
+        var nextByte:Byte = firstByte
+
+        var index = 0
+        val einByt = byteArrayOf()
+        //define end conditions
+        val unfinished:() -> Boolean = if(lengthIfSpecified != null) {{
+            index < lengthIfSpecified
+        }}else {{
+            readChar(nextByte) == OBJECT_END.marker
+        }}
+
+        //define loop step/increment
+        val step:() -> Unit = if(lengthIfSpecified != null) {{
+            index++
+        }} else {{
+            inputStream.read(einByt)
+            nextByte = einByt[0]
+        }}
+        //loop through the array
+        while(unfinished()) {
+            val name:String = readAny(inputStream, STRING_TYPE.marker) as String
+            val data = readAny(inputStream, homogeneousType ?: readChar(nextByte))
+            values.put(name, data)
+            step()
+        }
+        return values
+    }
+
 
     private data class ContainerTypeAndOrLength(val homogeneousType:Char?, val lengthIfSpecified:Long?, val nextByte:Byte)
     private fun checkForContainerTypeAndOrLength(inputStream:InputStream):ContainerTypeAndOrLength {
@@ -173,10 +213,10 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             //index + 2//increment index past type marker here, so the last expression can be the return type
             val einBeit = ByteArray(1)
             input.read(einBeit)
-            val hmm = readChar(einBeit[0])
+            val homogeneousType = readChar(einBeit[0])
             //read the next byte into possibleTypeOrLength, so it's ready to be checked by the next if
             input.read(oneByte)
-            hmm
+            homogeneousType
         } else { null }
 
         val lengthIfSpecified:Long? = when {
@@ -192,8 +232,22 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
             else -> throw IllegalArgumentException("Container type marker must not be specified without a length marker")
         }
 
+        //validate length
+        if(lengthIfSpecified != null) {
+            //the UBJSON spec explicitly requires checking for incorrectly negative length values:
+            //http://ubjson.org/developer-resources/#library_req
+            if (lengthIfSpecified < 0) {
+                throw ParseException("array specified a negative length value", 0)
+            }
+            if (lengthIfSpecified > Int.MAX_VALUE) {
+                throw UnsupportedEncodingException("array length is longer than maximum supported by JVM: $lengthIfSpecified")
+            }
+        }
+
         return ContainerTypeAndOrLength(homogeneousType, lengthIfSpecified, oneByte[0])
     }
+
+    data class ArrayWithType(val array:Array<Any?>, val type:KClass<out Any>)
 
     /**Reads an arbitrary number of bytes from the passed [InputStream], until the array is parsed or an error occurs.
      *
@@ -207,23 +261,11 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
     fun readArray(inputStream:InputStream):Array<out Any?> {
         val values:MutableList<Any?> = mutableListOf()
 
-        var index = 0
-        val einByt = byteArrayOf()
         val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength(inputStream)
         var nextByte:Byte = firstByte
-        //todo:find most recent common ancestor of all the types found in the array
 
-        if(lengthIfSpecified != null) {
-            //the UBJSON spec explicitly requires checking for incorrectly negative length values:
-            //http://ubjson.org/developer-resources/#library_req
-            if (lengthIfSpecified < 0) {
-                throw ParseException("array specified a negative length value", 0)
-            }
-            if (lengthIfSpecified > Int.MAX_VALUE) {
-                throw UnsupportedEncodingException("array length is longer than maximum supported by JVM: $lengthIfSpecified")
-            }
-        }
-
+        var index = 0
+        val einByt = byteArrayOf()
         //define end conditions
         val unfinished:() -> Boolean = if(lengthIfSpecified != null) {{
             index < lengthIfSpecified
@@ -240,7 +282,7 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         }}
         //loop through the array
         while(unfinished()) {
-            val data = readNext(inputStream, homogeneousType ?: readChar(nextByte))
+            val data = readAny(inputStream, homogeneousType ?: readChar(nextByte))
             values.add(data)
             step()
         }
@@ -269,9 +311,15 @@ class Reader(private val inputStream: InputStream, private val listener: ReaderL
         }else {
             //there is no homogeneous type marker, so
             //manually find most specific common ancestor of all the types found in the array, and return it as that
+            val typesInArray:Set<KClass<*>?> = values.map { it?.javaClass?.kotlin}.toSet()
+            //println("types in array: "+typesInArray)
+            if(typesInArray.size > 1) {
+                //if there is > 1 type in the whole array, use heterogeneous array syntax
+            }else {
+                // otherwise, make a homogeneous array of that one type
+            }
             values.toTypedArray()
         }
-        val types:MutableList<KClass<Any>> = mutableListOf()
 
         return returnArray
     }
