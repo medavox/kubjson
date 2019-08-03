@@ -13,8 +13,8 @@ import kotlin.reflect.KClass
 import kotlin.reflect.KClassifier
 import kotlin.reflect.KParameter
 
-object Reader {
-
+class Reader(private val inputStream: InputStream) {
+    private var bytesReadSoFar:Long = 0L
     //All integer types (int8, uint8, int16, int32 and int64) are written in most-significant-bit order
     // (high byte written first, aka “big endian“).
 
@@ -27,7 +27,7 @@ object Reader {
     //using a listener is no good, because it can't handle container types:
     // how would you tell if onBoolean() was being called for a value in the current type,
     // or a type inside that type?
-    fun readAny(inputStream: InputStream, typeChar: Char):Any? {
+    fun readAny(typeChar: Char):Any? {
         return when(typeChar) {
             NULL_TYPE.marker -> null
             TRUE_TYPE.marker -> true
@@ -35,108 +35,108 @@ object Reader {
             NO_OP_TYPE.marker -> Unit //fixme: returning Unit implicitly casts to any
             INT8_TYPE.marker -> {
                 val next1Byte = ByteArray(1)
-                inputStream.read(next1Byte)
+                bytesReadSoFar += inputStream.read(next1Byte)
                 readInt8(next1Byte[0])
             }
             UINT8_TYPE.marker -> {
                 val next1Byte = ByteArray(1)
-                inputStream.read(next1Byte)
+                bytesReadSoFar += inputStream.read(next1Byte)
                 readUint8(next1Byte[0])
             }
             INT16_TYPE.marker -> {
                 val next2Bytes = ByteArray(2)
-                inputStream.read(next2Bytes)
+                bytesReadSoFar += inputStream.read(next2Bytes)
                 readInt16(next2Bytes)
             }
             INT32_TYPE.marker -> {
                 val next4Bytes = ByteArray(4)
-                inputStream.read(next4Bytes)
+                bytesReadSoFar += inputStream.read(next4Bytes)
                 readInt32(next4Bytes)
             }
             INT64_TYPE.marker -> {
                 val next8Bytes = ByteArray(8)
-                inputStream.read(next8Bytes)
+                bytesReadSoFar += inputStream.read(next8Bytes)
                 readInt64(next8Bytes)
             }
             FLOAT32_TYPE.marker -> {
                 val nextBytes = ByteArray(4)
-                inputStream.read(nextBytes)
+                bytesReadSoFar += inputStream.read(nextBytes)
                 readFloat32(nextBytes)
             }
             FLOAT64_TYPE.marker -> {
                 val nextBytes = ByteArray(8)
-                inputStream.read(nextBytes)
+                bytesReadSoFar += inputStream.read(nextBytes)
                 readFloat64(nextBytes)
             }
             CHAR_TYPE.marker -> {
                 val next1Byte = ByteArray(1)
-                inputStream.read(next1Byte)
+                bytesReadSoFar += inputStream.read(next1Byte)
                 readChar(next1Byte[0])
             }
             STRING_TYPE.marker -> {
-                val strLength = readLength(inputStream)
+                val strLength = readLength()
                 if (strLength < 0) {
-                    throw ParseException("String specified a negative length value", 0)
+                    throw UbjsonParseException("String specified a negative length value", bytesReadSoFar)
                 }
                 if(strLength > Int.MAX_VALUE) {
-                    throw UnsupportedEncodingException("String length is longer than maximum supported by JVM:" +
-                            strLength)
+                    throw UbjsonParseException("String length is longer than maximum supported by JVM: $strLength",
+                        bytesReadSoFar)
                 }
                 val nextBytes = ByteArray(strLength.toInt())
-                inputStream.read(nextBytes)
+                bytesReadSoFar += inputStream.read(nextBytes)
                 readString(nextBytes)
             }
             HIGH_PRECISION_NUMBER_TYPE.marker -> {
-                val strLength = readLength(inputStream)
+                val strLength = readLength()
                 if (strLength < 0) {
-                    throw ParseException("High-precision number specified a negative length value", 0)
+                    throw UbjsonParseException("High-precision number specified a negative length value", bytesReadSoFar)
                 }
                 if(strLength > Int.MAX_VALUE) {
-                    throw UnsupportedEncodingException("High-precision number length is longer than maximum" +
-                            " supported by JVM: $strLength")
+                    throw UbjsonParseException("High-precision number length is longer than maximum supported by JVM:" +
+                            " $strLength", bytesReadSoFar)
                 }
                 val nextBytes = ByteArray(strLength.toInt())
-                inputStream.read(nextBytes)
+                bytesReadSoFar += inputStream.read(nextBytes)
                 readHighPrecisionNumber(nextBytes)
             }
             OBJECT_START.marker -> {
-                readObjectWithoutType(inputStream)
+                readObjectWithoutType()
             }
             ARRAY_START.marker -> {
-                readArray(inputStream)//oh look recursion. yay. -_-
+                readArray()//oh look recursion. yay. -_-
             }
-            else -> throw IllegalArgumentException("unexpected char in type marker: $typeChar")
+            else -> throw UbjsonParseException("unexpected char in type marker: $typeChar", bytesReadSoFar)
         }
     }
 
     /**it's a bad  idea to pass all the bytes at the start, because we don't know how many bytes we'll need,
      and we might try and pass more bytes than are left in the array, even if those extras bytes are not needed*/
-    internal fun readLength(input:InputStream):Long {
+    internal fun readLength():Long {
         val oneByte = ByteArray(1)
-        input.read(oneByte)
+        bytesReadSoFar += inputStream.read(oneByte)
         return when(readChar(oneByte[0])) {
             INT8_TYPE.marker -> {
                 val ba = ByteArray(1)
-                input.read(ba)
+                bytesReadSoFar += inputStream.read(ba)
                 readInt8(ba[0]).toLong()
             }
             INT16_TYPE.marker -> {
                 val ba = ByteArray(2)
-                input.read(ba)
+                bytesReadSoFar += inputStream.read(ba)
                 readInt16(ba).toLong()
             }
             INT32_TYPE.marker -> {
                 val ba = ByteArray(4)
-                input.read(ba)
+                bytesReadSoFar += inputStream.read(ba)
                 readInt32(ba).toLong()
             }
             INT64_TYPE.marker -> {
                 val ba = ByteArray(8)
-                input.read(ba)
+                bytesReadSoFar += inputStream.read(ba)
                 readInt64(ba)
             }
-            else -> throw IllegalArgumentException("was expecting a numeric type marker, " +
-                    "but got ${oneByte[0]} = '${oneByte[0].toChar()}'")
+            else -> throw UbjsonParseException("was expecting a numeric type marker, but got " +
+                    "${oneByte[0]} = '${oneByte[0].toChar()}'", bytesReadSoFar)
         }
     }
 
@@ -149,8 +149,8 @@ object Reader {
      * (Technically, we do know the byte-length of a homogeneous object with a length marker,
      * whose elements are of a fixed-length type.
      * But that is too specific a case to bother handling separately.) */
-    internal fun <T:Any> readObject(input:InputStream, toType: KClass<T>):T {
-        val map:Map<String, Any?> = readObjectWithoutType(input)
+    internal fun <T:Any> readObject(toType: KClass<T>):T {
+        val map:Map<String, Any?> = readObjectWithoutType()
         val p = Printa("readObject")
         p.rintln("map:")
         map.forEach { p.rintln(it) }
@@ -200,10 +200,10 @@ object Reader {
 
     /** an arbitrary number of bytes from the passed [InputStream], until an object is parsed or an error occurs.
      * This method writes the values to a Map<String, Any?>, without defining its type more explicitly.*/
-    internal fun readObjectWithoutType(inputStream:InputStream):Map<String, Any?> {
+    internal fun readObjectWithoutType():Map<String, Any?> {
         val values:MutableMap<String, Any?> = mutableMapOf()
         val p = Printa("readObjectWithoutType")
-        val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength(inputStream)
+        val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength()
         var nextByte:Byte = firstByte
         lengthIfSpecified?.let { p.rintln("length: $it") }
         var index = 0
@@ -219,13 +219,13 @@ object Reader {
         val step:() -> Unit = if(lengthIfSpecified != null) {{
             index++
         }} else {{
-            inputStream.read(einByt)
+            bytesReadSoFar += inputStream.read(einByt)
             nextByte = einByt[0]
         }}
         //loop through the array
         while(unfinished()) {
-            val name:String = readAny(inputStream, STRING_TYPE.marker) as String
-            val data = readAny(inputStream, homogeneousType ?: readChar(nextByte))
+            val name:String = readAny(STRING_TYPE.marker) as String
+            val data = readAny(homogeneousType ?: readChar(nextByte))
             p.rintln("adding: {$name | $data}")
             values.put(name, data)
             step()
@@ -235,32 +235,33 @@ object Reader {
 
 
     private data class ContainerTypeAndOrLength(val homogeneousType:Char?, val lengthIfSpecified:Long?, val nextByte:Byte)
-    private fun checkForContainerTypeAndOrLength(inputStream:InputStream):ContainerTypeAndOrLength {
+    private fun checkForContainerTypeAndOrLength():ContainerTypeAndOrLength {
         val input:BufferedInputStream = if(inputStream is BufferedInputStream) inputStream
                 else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
         val oneByte = ByteArray(1)
-        input.read(oneByte)
+        bytesReadSoFar += input.read(oneByte)
         val homogeneousType:Char? = if(readChar(oneByte[0]) == HOMOGENEOUS_CONTAINER_TYPE.marker) {
             //index + 2//increment index past type marker here, so the last expression can be the return type
             val einBeit = ByteArray(1)
-            input.read(einBeit)
+            bytesReadSoFar += input.read(einBeit)
             val homogeneousType = readChar(einBeit[0])
             //read the next byte into possibleTypeOrLength, so it's ready to be checked by the next if
-            input.read(oneByte)
+            bytesReadSoFar += input.read(oneByte)
             homogeneousType
         } else { null }
 
         val lengthIfSpecified:Long? = when {
             readChar(oneByte[0]) == CONTAINER_LENGTH.marker -> {
-                val len = readLength(input)
+                val len = readLength()
                 //read next byte, so the first byte of the first contained value is always pre-consumed.
                 //without doing this, sometime it'd be pre-consumed, and sometimes not, with no way to tell
                 //it wouldn't be naturally preconsumed in this if-branch, but it would in every other
-                input.read(oneByte)
+                bytesReadSoFar += input.read(oneByte)
                 len
             }
             homogeneousType == null -> null
-            else -> throw IllegalArgumentException("Container type marker must not be specified without a length marker")
+            else -> throw UbjsonParseException("Container type marker must not be specified without a length marker",
+                bytesReadSoFar)
         }
 
         //validate length
@@ -268,10 +269,11 @@ object Reader {
             //the UBJSON spec explicitly requires checking for incorrectly negative length values:
             //http://ubjson.org/developer-resources/#library_req
             if (lengthIfSpecified < 0) {
-                throw ParseException("array specified a negative length value", 0)
+                throw UbjsonParseException("array specified a negative length value", bytesReadSoFar)
             }
             if (lengthIfSpecified > Int.MAX_VALUE) {
-                throw UnsupportedEncodingException("array length is longer than maximum supported by JVM: $lengthIfSpecified")
+                throw UbjsonParseException("array length is longer than maximum supported by JVM: $lengthIfSpecified",
+                    bytesReadSoFar)
             }
         }
 
@@ -289,10 +291,10 @@ object Reader {
      * (Technically, we do know the byte-length of a homogeneous array with a length marker,
      * whose elements are of a fixed-length type.
      * But that is too specific a case to bother handling separately.)*/
-    fun readArray(inputStream:InputStream):Array<out Any?> {
+    fun readArray():Array<out Any?> {
         val values:MutableList<Any?> = mutableListOf()
 
-        val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength(inputStream)
+        val (homogeneousType, lengthIfSpecified, firstByte) = checkForContainerTypeAndOrLength()
         var nextByte:Byte = firstByte
 
         var index = 0
@@ -308,12 +310,12 @@ object Reader {
         val step:() -> Unit = if(lengthIfSpecified != null) {{
             index++
         }} else {{
-            inputStream.read(einByt)
+            bytesReadSoFar += inputStream.read(einByt)
             nextByte = einByt[0]
         }}
         //loop through the array
         while(unfinished()) {
-            val data = readAny(inputStream, homogeneousType ?: readChar(nextByte))
+            val data = readAny(homogeneousType ?: readChar(nextByte))
             values.add(data)
             step()
         }
@@ -347,12 +349,11 @@ object Reader {
                 }
                 values.toTypedArray()
             }
-            else -> throw IllegalArgumentException("unexpected char/byte in type marker: " +
-                    "$nextByte/${readChar(nextByte)}")
+            else -> throw UbjsonParseException("unexpected char/byte in type marker: $nextByte/${readChar(nextByte)}",
+                bytesReadSoFar)
         }
         return returnArray
     }
-
 
     /**Read the contents of the Int8 from the start of the passed [ByteArray], without a preceding type marker or length.*/
     internal fun readInt8(b:Byte):Byte {
