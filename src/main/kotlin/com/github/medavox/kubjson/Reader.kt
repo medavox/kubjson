@@ -11,6 +11,7 @@ import java.text.ParseException
 import javax.validation.constraints.Size
 import kotlin.reflect.KClass
 import kotlin.reflect.KClassifier
+import kotlin.reflect.KParameter
 
 object Reader {
 
@@ -156,7 +157,15 @@ object Reader {
         //option a: manually set each of the instance's properties with elements from the map,
         //whose name and type match
         p.rintln("constructors:")
-        toType.constructors.forEach { p.rintln(it) }
+        for(constr in toType.constructors) {
+            val params:String = constr.parameters.fold("", {acc:String, param:KParameter ->
+                //if(param.isOptional){""}else{
+                val typ = param.type.toString()
+                val classString=if(typ.startsWith("kotlin.")) typ.substring(7) else typ
+                acc+", "+if(param.isVararg){"vararg "}else{""}+"${param.name}:$classString"})
+                .substring(2)
+            p.rintln("fun <init>($params): ${constr.returnType}")
+        }
 
         //option B: find a constructor whose name/type pairs all match entries in the map
         construc@ for(constructor in toType.constructors) {
