@@ -55,51 +55,35 @@ object Writer {
     internal fun writeAnything(any:Any?, writeTypeMarker:Boolean=true):ByteArray {
         data class TypeAndContent(val typeMarker:ByteArray, val content:ByteArray)
         val p = Printa("writeAnything")
-        //just write a null tag if the value is null; type info will just have to be omitted
-        if(any == null) {
-            //println("NULL")
-            return writeNull()
-        }
-
-        //archetypes for use with isInstance
-        val boolean = false
-        val byte:Byte = 127
-        val short:Short = Short.MAX_VALUE
-        val int:Int = Int.MAX_VALUE
-        val long:Long = Long.MAX_VALUE
-        val float:Float = Float.MAX_VALUE
-        val double:Double = Double.MAX_VALUE
-        val char:Char = 'c'
-        val string:String = ""
-
-        val typeSurrogate = any.javaClass.kotlin
-        val (type, content) = with(typeSurrogate) {
-            when {
-                isInstance(boolean) -> TypeAndContent(writeBoolean(any as Boolean), byteArrayOf())//the boolean's type marker IS the content
-                isInstance(byte) -> TypeAndContent(writeMarker(INT8_TYPE), writeInt8(any as Byte))
-                isInstance(short) -> TypeAndContent(writeMarker(INT16_TYPE), writeInt16(any as Short))
-                isInstance(int) -> TypeAndContent(writeMarker(INT32_TYPE), writeInt32(any as Int))
-                isInstance(long) -> TypeAndContent(writeMarker(INT64_TYPE), writeInt64(any as Long))
-                isInstance(float) -> TypeAndContent(writeMarker(FLOAT32_TYPE), writeFloat32(any as Float))
-                isInstance(double) -> TypeAndContent(writeMarker(FLOAT64_TYPE), writeFloat64(any as Double))
-                isInstance(char) -> TypeAndContent(writeMarker(CHAR_TYPE), writeChar(any as Char))
-                isInstance(string) -> TypeAndContent(writeMarker(STRING_TYPE), writeString(any as String))
-                isInstance(BigDecimal.ONE) -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber(any as BigDecimal))
-                isInstance(BigInteger.ONE) -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber((any as BigInteger).toBigDecimal()))
-                isInstance(booleanArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as BooleanArray))
-                isInstance(byteArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as ByteArray))
-                isInstance(shortArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as ShortArray))
-                isInstance(intArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as IntArray))
-                isInstance(longArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as LongArray))
-                isInstance(floatArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as FloatArray))
-                isInstance(doubleArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as DoubleArray))
-                isInstance(charArrayOf()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as CharArray))
-                isInstance(emptyArray<Any?>()) -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as Array<Any?>))
-                else -> {
-                    p.rintln("UNHANDLED TYPE:" + typeSurrogate)
-                    //todo: try to serialise unknown types as an object
-                    TypeAndContent(byteArrayOf(), byteArrayOf())
-                }
+        val (type, content) = when(any) {
+            //just write a null tag if the value is null; type info will just have to be omitted
+            null -> TypeAndContent(writeNull(), byteArrayOf())
+            is Boolean -> TypeAndContent(writeBoolean(any), byteArrayOf())//the boolean's type marker IS the content
+            is Byte -> TypeAndContent(writeMarker(INT8_TYPE), writeInt8(any))
+            is Short -> TypeAndContent(writeMarker(INT16_TYPE), writeInt16(any))
+            is Int -> TypeAndContent(writeMarker(INT32_TYPE), writeInt32(any))
+            is Long -> TypeAndContent(writeMarker(INT64_TYPE), writeInt64(any))
+            is Float -> TypeAndContent(writeMarker(FLOAT32_TYPE), writeFloat32(any))
+            is Double -> TypeAndContent(writeMarker(FLOAT64_TYPE), writeFloat64(any))
+            is Char -> TypeAndContent(writeMarker(CHAR_TYPE), writeChar(any))
+            is String -> TypeAndContent(writeMarker(STRING_TYPE), writeString(any))
+            is BigDecimal -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber(any))
+            is BigInteger -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber((any).toBigDecimal()))
+            //fixme: vanilla array types aren't detected properly, and neither are subtypes of Any
+            is BooleanArray -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any))
+            is ByteArray -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any))
+            is ShortArray -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any))
+            is IntArray -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any))
+            is LongArray -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any))
+            is FloatArray -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any))
+            is DoubleArray -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any))
+            is CharArray -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any))
+            is Array<*> -> TypeAndContent(writeMarker(ARRAY_START), writeArray(any as Array<Any?>))
+            is Any -> TypeAndContent(writeMarker(OBJECT_START), writeObject(any))
+            else -> {
+                p.rintln("UNHANDLED TYPE:" + any.javaClass.kotlin)
+                //todo: try to serialise unknown types as an object
+                TypeAndContent(byteArrayOf(), byteArrayOf())
             }
         }
         return if(writeTypeMarker) type + content else content
