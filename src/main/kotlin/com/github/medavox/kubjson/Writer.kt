@@ -95,25 +95,26 @@ object Writer {
         //first: check that every elementin the array is of the same type,
         //by adding the type of every element to a set
         val typesInArray:Set<KClass<*>?> = array.map { it?.javaClass?.kotlin}.toSet()
+        val p = Printa("writeArray")
         //println("types in array: "+typesInArray)
         val homogeneous = if(typesInArray.size > 1) {
             //if there is > 1 type in the whole array, use heterogeneous array syntax
+            p.rintln("heterogeneous array detected")
             false
         }else {
             // otherwise, make a homogeneous array of that one type
             outputBytes += writeMarkers(HOMOGENEOUS_CONTAINER_TYPE)
+            p.rintln("homogeneous array type detected: "+typesInArray.first()?.simpleName)
             true
         }
         //also: check for nullability in elements, then nullness
 
         //either way, write array length (we always write array length)
         outputBytes += writeMarker(CONTAINER_LENGTH) + writeLength(array.size)
-        val p = Printa("writeArray")
-        p.rintln("array type:"+array::class.typeParameters)
+        //p.rintln("array type param:"+array::class.typeParameters)
         for(element in array) {
-            p.rintln("element: "+element)
-            p.rintln("type: "+element?.javaClass?.simpleName)
-            outputBytes += writeAnything(element, homogeneous)
+            p.rintln("element $element:${element?.javaClass?.simpleName}")
+            outputBytes += writeAnything(element, !homogeneous)//if it's not homogeneous, do write the type marker
         }
         return outputBytes
     }
