@@ -9,10 +9,14 @@ import java.io.InputStream
 class InputStreamShim(private val inputStream: InputStream) {
     private var peekedByte:Byte? = null
 
+    private val bytesRedOnEachRead:MutableList<Int> = mutableListOf(0)
+    val numBytesLastRead:Int get() = bytesRedOnEachRead.last()
+
     fun readBytes(numBytesToRead:Int):ByteArray {
         val peeked = peekedByte
         val outputByteArray = ByteArray(if(peeked != null) numBytesToRead -1 else numBytesToRead)
         val bytesActuallyRead = inputStream.read(outputByteArray)
+        bytesRedOnEachRead.add(bytesActuallyRead)
         if(bytesActuallyRead + (if(peeked != null) 1 else 0) != numBytesToRead) {
             System.err.println("unable to read requested number of bytes $numBytesToRead from input stream: " +
                     "not enough bytes left in input stream, only read $bytesActuallyRead bytes")
@@ -26,7 +30,7 @@ class InputStreamShim(private val inputStream: InputStream) {
         }
     }
 
-    fun peekAtNextByte():Byte {
+    fun peekNextByte():Byte {
         val peekyByter = readOneByte()
         peekedByte = peekyByter
         return peekyByter
