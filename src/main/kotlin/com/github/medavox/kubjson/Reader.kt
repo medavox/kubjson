@@ -28,7 +28,7 @@ class Reader(private val inputStream: InputStream) {
     //using a listener is no good, because it can't handle container types:
     // how would you tell if onBoolean() was being called for a value in the current type,
     // or a type inside that type?
-    fun readAny(typeChar: Char):Any? {
+    fun readAnything(typeChar: Char):Any? {
         return when(typeChar) {
             NULL_TYPE.marker -> null
             TRUE_TYPE.marker -> true
@@ -239,27 +239,29 @@ class Reader(private val inputStream: InputStream) {
 
     private data class ContainerTypeAndOrLength(val homogeneousType:Char?, val lengthIfSpecified:Long?, val nextByte:Byte)
     private fun checkForContainerTypeAndOrLength():ContainerTypeAndOrLength {
-        val input:BufferedInputStream = if(inputStream is BufferedInputStream) inputStream
-                else BufferedInputStream(inputStream)//only wrap inputSTream in a BIS if it's not one already;
-        val oneByte = ByteArray(1)
-        bytesReadSoFar += input.read(oneByte)
-        val homogeneousType:Char? = if(readChar(oneByte[0]) == HOMOGENEOUS_CONTAINER_TYPE.marker) {
+        //NOTE: don't use a BufferedInputStream here.
+        // wrapping the normal InputStream in a new BufferedInputStream instance causes that BufferedInputStream,
+        //upon its first read call, to read THE ENTIRE CONTENTS of the InputStream it's wrapping.
+        //this makes later calls to the normal InputStream's read(ByteArray) run out of input.
+        val singleByteInProcessing = ByteArray(1)
+        bytesReadSoFar += max(0, inputStream.read(singleByteInProcessing))
+        val homogeneousType:Char? = if(readChar(singleByteInProcessing[0]) == HOMOGENEOUS_CONTAINER_TYPE.marker) {
             //index + 2//increment index past type marker here, so the last expression can be the return type
-            val einBeit = ByteArray(1)
-            bytesReadSoFar += input.read(einBeit)
-            val homogeneousType = readChar(einBeit[0])
-            //read the next byte into possibleTypeOrLength, so it's ready to be checked by the next if
-            bytesReadSoFar += input.read(oneByte)
+            val homoTypeSingleByteArr = ByteArray(1)
+            bytesReadSoFar += max(0, inputStream.read(homoTypeSingleByteArr))
+            val homogeneousType = readChar(homoTypeSingleByteArr[0])
+            //read the next byte into singleByteInProcessing, so it's ready to be checked as a length
+            bytesReadSoFar += max(0, inputStream.read(singleByteInProcessing))
             homogeneousType
-        } else { null }
+        } else { null }//we haven't consumed the byte checked for, so leave it to be checked as a length
 
         val lengthIfSpecified:Long? = when {
-            readChar(oneByte[0]) == CONTAINER_LENGTH.marker -> {
+            readChar(singleByteInProcessing[0]) == CONTAINER_LENGTH.marker -> {
                 val len = readLength()
                 //read next byte, so the first byte of the first contained value is always pre-consumed.
                 //without doing this, sometime it'd be pre-consumed, and sometimes not, with no way to tell
                 //it wouldn't be naturally preconsumed in this if-branch, but it would in every other
-                bytesReadSoFar += input.read(oneByte)
+                bytesReadSoFar += max(0, inputStream.read(singleByteInProcessing))
                 len
             }
             homogeneousType == null -> null
@@ -280,7 +282,7 @@ class Reader(private val inputStream: InputStream) {
             }
         }
 
-        return ContainerTypeAndOrLength(homogeneousType, lengthIfSpecified, oneByte[0])
+        return ContainerTypeAndOrLength(homogeneousType, lengthIfSpecified, singleByteInProcessing[0])
     }
 
     data class ArrayWithType(val array:Array<Any?>, val type:KClass<out Any>)
@@ -318,7 +320,7 @@ class Reader(private val inputStream: InputStream) {
         }}
         //loop through the array
         while(unfinished()) {
-            val data = readAny(homogeneousType ?: readChar(nextByte))
+            val data = readAnything(homogeneousType ?: readChar(nextByte))
             values.add(data)
             step()
         }
