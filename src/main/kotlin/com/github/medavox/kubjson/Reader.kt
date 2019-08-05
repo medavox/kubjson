@@ -1,13 +1,10 @@
 package com.github.medavox.kubjson
 
 import com.github.medavox.kubjson.Markers.*
-import java.io.BufferedInputStream
 import java.io.InputStream
-import java.io.UnsupportedEncodingException
 import java.math.BigDecimal
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.text.ParseException
 import javax.validation.constraints.Size
 import kotlin.math.max
 import kotlin.reflect.KClass
@@ -360,54 +357,56 @@ class Reader(private val inputStream: InputStream) {
         return returnArray
     }
 
-    /**Read the contents of the Int8 from the start of the passed [ByteArray], without a preceding type marker or length.*/
-    internal fun readInt8(b:Byte):Byte {
-        return ByteBuffer.wrap(byteArrayOf(b)).order(ByteOrder.BIG_ENDIAN).get()
-    }
+    companion object {
+        /**Read the contents of the Int8 from the start of the passed [ByteArray], without a preceding type marker or length.*/
+        internal fun readInt8(b: Byte): Byte {
+            return ByteBuffer.wrap(byteArrayOf(b)).order(ByteOrder.BIG_ENDIAN).get()
+        }
 
-    /**Read the contents of the UInt8 in the start of the passed [ByteArray], without a preceding type marker or length.*/
-    @UseExperimental(ExperimentalUnsignedTypes::class)
-    internal fun readUint8(b:Byte):UByte {
-        return readInt8(b).toUByte()
-    }
+        /**Read the contents of the UInt8 in the start of the passed [ByteArray], without a preceding type marker or length.*/
+        @UseExperimental(ExperimentalUnsignedTypes::class)
+        internal fun readUint8(b: Byte): UByte {
+            return readInt8(b).toUByte()
+        }
 
-    /**Read a UBJSON Int16 value into a JVM Short.
-     * @param b a [ByteArray] of the contents (no type marker)*/
-    internal fun readInt16(@Size(min=2, max=2)b:ByteArray):Short {
-        return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getShort()
-    }
+        /**Read a UBJSON Int16 value into a JVM Short.
+         * @param b a [ByteArray] of the contents (no type marker)*/
+        internal fun readInt16(@Size(min = 2, max = 2) b: ByteArray): Short {
+            return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getShort()
+        }
 
-    /**Read the contents of the Int32 contained at the start of the passed [ByteArray] into a JVM Int(eger),
-     * without a preceding type marker or length.*/
-    internal fun readInt32(@Size(min=4, max=4)b:ByteArray):Int {
-        return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getInt()
-    }
+        /**Read the contents of the Int32 contained at the start of the passed [ByteArray] into a JVM Int(eger),
+         * without a preceding type marker or length.*/
+        internal fun readInt32(@Size(min = 4, max = 4) b: ByteArray): Int {
+            return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getInt()
+        }
 
-    /**Read the contents of the Int64 contained at the start of the passed [ByteArray] into a JVM Long,
-     * without a preceding type marker or length.*/
-    internal fun readInt64(@Size(min=8, max=8)b:ByteArray):Long {
-        return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getLong()
-    }
+        /**Read the contents of the Int64 contained at the start of the passed [ByteArray] into a JVM Long,
+         * without a preceding type marker or length.*/
+        internal fun readInt64(@Size(min = 8, max = 8) b: ByteArray): Long {
+            return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getLong()
+        }
 
-    internal fun readFloat32(@Size(min=4, max=4)b:ByteArray):Float {
-        return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getFloat()
-    }
+        internal fun readFloat32(@Size(min = 4, max = 4) b: ByteArray): Float {
+            return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getFloat()
+        }
 
-    internal fun readFloat64(@Size(min=8, max=8)b:ByteArray):Double {
-        return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getDouble()
-    }
+        internal fun readFloat64(@Size(min = 8, max = 8) b: ByteArray): Double {
+            return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getDouble()
+        }
 
-    internal fun readChar(b:Byte):Char {
-        return readInt8(b).toChar()
-    }
+        internal fun readChar(b: Byte): Char {
+            return readInt8(b).toChar()
+        }
 
-    /**Read the value of a UBJSON UTF-8 encoded string into a JVM UTF-16 String
-     * @param b a [ByteArray] containing just the content of the string -- no type marker or length field*/
-    internal fun readString(b:ByteArray):String {
-        return b.toString(Charsets.UTF_8)
-    }
+        /**Read the value of a UBJSON UTF-8 encoded string into a JVM UTF-16 String
+         * @param b a [ByteArray] containing just the content of the string -- no type marker or length field*/
+        internal fun readString(b: ByteArray): String {
+            return b.toString(Charsets.UTF_8)
+        }
 
-    internal fun readHighPrecisionNumber(b:ByteArray):BigDecimal {
-        return BigDecimal(readString(b))
+        internal fun readHighPrecisionNumber(b: ByteArray): BigDecimal {
+            return BigDecimal(readString(b))
+        }
     }
 }
