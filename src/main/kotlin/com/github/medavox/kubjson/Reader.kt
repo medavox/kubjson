@@ -212,7 +212,7 @@ class Reader(private val inputStream: InputStream) {
         val unfinished:() -> Boolean = if(lengthIfSpecified != null) {{
             index < lengthIfSpecified
         }}else {{
-            readChar(nextByte) == OBJECT_END.marker
+            readChar(nextByte) != OBJECT_END.marker
         }}
 
         //define loop step/increment
