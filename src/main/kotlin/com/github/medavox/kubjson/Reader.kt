@@ -9,6 +9,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.text.ParseException
 import javax.validation.constraints.Size
+import kotlin.math.max
 import kotlin.reflect.KClass
 import kotlin.reflect.KClassifier
 import kotlin.reflect.KParameter
@@ -35,42 +36,42 @@ class Reader(private val inputStream: InputStream) {
             NO_OP_TYPE.marker -> Unit //fixme: returning Unit implicitly casts to any
             INT8_TYPE.marker -> {
                 val next1Byte = ByteArray(1)
-                bytesReadSoFar += inputStream.read(next1Byte)
+                bytesReadSoFar += max(0, inputStream.read(next1Byte))
                 readInt8(next1Byte[0])
             }
             UINT8_TYPE.marker -> {
                 val next1Byte = ByteArray(1)
-                bytesReadSoFar += inputStream.read(next1Byte)
+                bytesReadSoFar += max(0, inputStream.read(next1Byte))
                 readUint8(next1Byte[0])
             }
             INT16_TYPE.marker -> {
                 val next2Bytes = ByteArray(2)
-                bytesReadSoFar += inputStream.read(next2Bytes)
+                bytesReadSoFar += max(0, inputStream.read(next2Bytes))
                 readInt16(next2Bytes)
             }
             INT32_TYPE.marker -> {
                 val next4Bytes = ByteArray(4)
-                bytesReadSoFar += inputStream.read(next4Bytes)
+                bytesReadSoFar += max(0, inputStream.read(next4Bytes))
                 readInt32(next4Bytes)
             }
             INT64_TYPE.marker -> {
                 val next8Bytes = ByteArray(8)
-                bytesReadSoFar += inputStream.read(next8Bytes)
+                bytesReadSoFar += max(0, inputStream.read(next8Bytes))
                 readInt64(next8Bytes)
             }
             FLOAT32_TYPE.marker -> {
                 val nextBytes = ByteArray(4)
-                bytesReadSoFar += inputStream.read(nextBytes)
+                bytesReadSoFar += max(0, inputStream.read(nextBytes))
                 readFloat32(nextBytes)
             }
             FLOAT64_TYPE.marker -> {
                 val nextBytes = ByteArray(8)
-                bytesReadSoFar += inputStream.read(nextBytes)
+                bytesReadSoFar += max(0, inputStream.read(nextBytes))
                 readFloat64(nextBytes)
             }
             CHAR_TYPE.marker -> {
                 val next1Byte = ByteArray(1)
-                bytesReadSoFar += inputStream.read(next1Byte)
+                bytesReadSoFar += max(0, inputStream.read(next1Byte))
                 readChar(next1Byte[0])
             }
             STRING_TYPE.marker -> {
@@ -83,7 +84,7 @@ class Reader(private val inputStream: InputStream) {
                         bytesReadSoFar)
                 }
                 val nextBytes = ByteArray(strLength.toInt())
-                bytesReadSoFar += inputStream.read(nextBytes)
+                bytesReadSoFar += max(0, inputStream.read(nextBytes))
                 readString(nextBytes)
             }
             HIGH_PRECISION_NUMBER_TYPE.marker -> {
@@ -96,7 +97,7 @@ class Reader(private val inputStream: InputStream) {
                             " $strLength", bytesReadSoFar)
                 }
                 val nextBytes = ByteArray(strLength.toInt())
-                bytesReadSoFar += inputStream.read(nextBytes)
+                bytesReadSoFar += max(0, inputStream.read(nextBytes))
                 readHighPrecisionNumber(nextBytes)
             }
             OBJECT_START.marker -> {
@@ -112,27 +113,29 @@ class Reader(private val inputStream: InputStream) {
     /**it's a bad  idea to pass all the bytes at the start, because we don't know how many bytes we'll need,
      and we might try and pass more bytes than are left in the array, even if those extras bytes are not needed*/
     internal fun readLength():Long {
+        val p = Printa("readLength")
         val oneByte = ByteArray(1)
-        bytesReadSoFar += inputStream.read(oneByte)
+        bytesReadSoFar += max(0, inputStream.read(oneByte))
+        p.rintln("potential numberic type marker: "+oneByte[0])
         return when(readChar(oneByte[0])) {
             INT8_TYPE.marker -> {
                 val ba = ByteArray(1)
-                bytesReadSoFar += inputStream.read(ba)
+                bytesReadSoFar += max(0, inputStream.read(ba))
                 readInt8(ba[0]).toLong()
             }
             INT16_TYPE.marker -> {
                 val ba = ByteArray(2)
-                bytesReadSoFar += inputStream.read(ba)
+                bytesReadSoFar += max(0, inputStream.read(ba))
                 readInt16(ba).toLong()
             }
             INT32_TYPE.marker -> {
                 val ba = ByteArray(4)
-                bytesReadSoFar += inputStream.read(ba)
+                bytesReadSoFar += max(0, inputStream.read(ba))
                 readInt32(ba).toLong()
             }
             INT64_TYPE.marker -> {
                 val ba = ByteArray(8)
-                bytesReadSoFar += inputStream.read(ba)
+                bytesReadSoFar += max(0, inputStream.read(ba))
                 readInt64(ba)
             }
             else -> throw UbjsonParseException("was expecting a numeric type marker, but got " +
@@ -219,7 +222,7 @@ class Reader(private val inputStream: InputStream) {
         val step:() -> Unit = if(lengthIfSpecified != null) {{
             index++
         }} else {{
-            bytesReadSoFar += inputStream.read(einByt)
+            bytesReadSoFar += max(0, inputStream.read(einByt))
             nextByte = einByt[0]
         }}
         //loop through the array
@@ -310,7 +313,7 @@ class Reader(private val inputStream: InputStream) {
         val step:() -> Unit = if(lengthIfSpecified != null) {{
             index++
         }} else {{
-            bytesReadSoFar += inputStream.read(einByt)
+            bytesReadSoFar += max(0, inputStream.read(einByt))
             nextByte = einByt[0]
         }}
         //loop through the array
