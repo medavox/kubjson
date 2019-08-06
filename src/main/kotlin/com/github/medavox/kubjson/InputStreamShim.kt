@@ -32,6 +32,13 @@ class InputStreamShim(private val inputStream: InputStream) {
         }
     }
 
+    /**Get the next byte from the underlying inputstream, without removing it from the output of the next read call.
+     *
+     * Since peeking doesn't count as reading the byte,
+     *if multiple consecutive calls to peek() are made without any calls to a read function in between,
+     * they all return the same byte.
+     *
+     * @return the next byte in the input stream*/
     fun peekNextByte():Byte {
         val peekyBefore = peekedByte
         if(peekyBefore == null) {
