@@ -9,19 +9,23 @@ import java.io.InputStream
 class InputStreamShim(private val inputStream: InputStream) {
     private var peekedByte:Byte? = null
     //todo: keep track of bytes read In This Class, instead of in the Reader
+    var bytesReadSoFar:Long = 0L
+        private set
     @Throws(InsufficientBytesReadException::class)
     fun readBytes(numBytesToRead:Int):ByteArray {
         val peeked = peekedByte
         val outputByteArray = ByteArray(if(peeked != null) numBytesToRead -1 else numBytesToRead)
         val bytesActuallyRead = inputStream.read(outputByteArray)
-        if(bytesActuallyRead + (if(peeked != null) 1 else 0) != numBytesToRead) {
+        val bytesReadIncludingPeeked = bytesActuallyRead + (if(peeked != null) 1 else 0)
+        bytesReadSoFar += bytesReadIncludingPeeked
+        if(bytesReadIncludingPeeked != numBytesToRead) {
             System.err.println("unable to read requested number of bytes $numBytesToRead from input stream: " +
                     "not enough bytes left in input stream, only read $bytesActuallyRead bytes")
             throw InsufficientBytesReadException(numBytesToRead, bytesActuallyRead)
         }
-        //return the read araray, plus the peeked byte stuck on the front (if it's not null)
+        //return the read array, plus the peeked byte stuck on the front (if it's not null)
         return if(peeked != null) {
-            peekedByte = null
+            peekedByte = null//reset the instance variable, because we've now used its value
             byteArrayOf(peeked, *outputByteArray)
         }else {
             outputByteArray
