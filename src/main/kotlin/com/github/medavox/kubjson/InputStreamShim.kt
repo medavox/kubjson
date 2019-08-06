@@ -33,9 +33,14 @@ class InputStreamShim(private val inputStream: InputStream) {
     }
 
     fun peekNextByte():Byte {
-        val peekyByter = readOneByte()
-        peekedByte = peekyByter
-        return peekyByter
+        val peekyBefore = peekedByte
+        if(peekyBefore == null) {
+            val peekyByter = readOneByte()
+            peekedByte = peekyByter
+            return peekyByter
+        }else {
+            return peekyBefore
+        }
     }
 
     fun readOneByte():Byte {
