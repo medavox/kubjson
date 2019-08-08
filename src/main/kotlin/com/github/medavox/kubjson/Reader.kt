@@ -156,19 +156,19 @@ class Reader(inputStream: InputStream) {
     internal fun readObjectWithoutType():Map<String, Any?> {
         val values:MutableMap<String, Any?> = mutableMapOf()
         val p = Printa("readObjectWithoutType")
-        val (homogeneousType, lengthIfSpecified) = checkForContainerTypeAndOrLength()
+        val (homogeneousType, count) = checkForContainerTypeAndOrCount()
         var nextByte:Byte = shim.readOneByte()
-        lengthIfSpecified?.let { p.rintln("length: $it") }
+        count?.let { p.rintln("count: $it") }
         var index = 0
         //define end conditions
-        val unfinished:() -> Boolean = if(lengthIfSpecified != null) {{
-            index < lengthIfSpecified//fixme: we're only using the leftover byte here if there'sno length specified
+        val unfinished:() -> Boolean = if(count != null) {{
+            index < count
         }}else {{
             readChar(nextByte) != OBJECT_END.marker
         }}
 
         //define loop step/increment
-        val step:() -> Unit = if(lengthIfSpecified != null) {{
+        val step:() -> Unit = if(count != null) {{
             index++
         }} else {{
             nextByte = shim.readOneByte()
@@ -184,8 +184,8 @@ class Reader(inputStream: InputStream) {
         return values
     }
 
-    private data class ContainerTypeAndOrLength(val homogeneousType:Char?, val lengthIfSpecified:Long?)
-    private fun checkForContainerTypeAndOrLength():ContainerTypeAndOrLength {
+    private data class ContainerTypeAndOrCount(val homogeneousType:Char?, val count:Long?)
+    private fun checkForContainerTypeAndOrCount():ContainerTypeAndOrCount {
         //NOTE: don't use a BufferedInputStream here.
         // wrapping the normal InputStream in a new BufferedInputStream instance causes that BufferedInputStream,
         //upon its first read call, to read THE ENTIRE CONTENTS of the InputStream it's wrapping.
@@ -193,29 +193,36 @@ class Reader(inputStream: InputStream) {
         val homogeneousType:Char? = if(readChar(shim.peekNextByte()) == HOMOGENEOUS_CONTAINER_TYPE.marker) {
             //skip past the first byte since we know it says homogeneous
             readChar(shim.readBytes(2)[1])
-        } else { null }//we haven't consumed the byte checked for, so leave it to be checked as a length
+        } else { null }//we haven't consumed the byte checked for, so leave it to be checked as a count
 
-        val lengthIfSpecified:Long? = when {
-            homogeneousType == null -> null
-            readChar(shim.peekNextByte()) == CONTAINER_LENGTH.marker -> readLength()
-            else -> throw UbjsonParseException("Container type marker must not be specified without a length marker",
-                shim.bytesReadSoFar)
+        val possibleCountMarker = readChar(shim.peekNextByte())
+        val countIfSpecified:Long? = if (possibleCountMarker != CONTAINER_LENGTH.marker) {
+            if(homogeneousType != null) {
+                //count is null, so homogeneous type must not be specified
+                throw UbjsonParseException("Homogeneous type marker must not be specified without a count marker",
+                    shim.bytesReadSoFar)
+            }else {//homogeneous type is null, so length may safely be null
+                null
+            }
+        } else {//count is specified, so read it
+            shim.readOneByte()
+            readLength()
         }
 
-        //validate length
-        if(lengthIfSpecified != null) {
-            //the UBJSON spec explicitly requires checking for incorrectly negative length values:
+        //validate count
+        if(countIfSpecified != null) {
+            //the UBJSON spec explicitly requires checking for incorrectly negative count values:
             //http://ubjson.org/developer-resources/#library_req
-            if (lengthIfSpecified < 0) {
-                throw UbjsonParseException("array specified a negative length value", shim.bytesReadSoFar)
+            if (countIfSpecified < 0) {
+                throw UbjsonParseException("array specified a negative count value", shim.bytesReadSoFar)
             }
-            if (lengthIfSpecified > Int.MAX_VALUE) {
-                throw UbjsonParseException("array length is longer than maximum supported by JVM: $lengthIfSpecified",
+            if (countIfSpecified > Int.MAX_VALUE) {
+                throw UbjsonParseException("array count is longer than maximum supported by JVM: $countIfSpecified",
                     shim.bytesReadSoFar)
             }
         }
 
-        return ContainerTypeAndOrLength(homogeneousType, lengthIfSpecified)
+        return ContainerTypeAndOrCount(homogeneousType, countIfSpecified)
     }
 
     data class ArrayWithType(val array:Array<Any?>, val type:KClass<out Any>)
@@ -232,19 +239,19 @@ class Reader(inputStream: InputStream) {
     fun readArray():Array<out Any?> {
         val values:MutableList<Any?> = mutableListOf()
 
-        val (homogeneousType, lengthIfSpecified) = checkForContainerTypeAndOrLength()
+        val (homogeneousType, count) = checkForContainerTypeAndOrCount()
         var nextByte:Byte = shim.readOneByte()
 
         var index = 0
         //define end conditions
-        val unfinished:() -> Boolean = if(lengthIfSpecified != null) {{
-            index < lengthIfSpecified
+        val unfinished:() -> Boolean = if(count != null) {{
+            index < count
         }}else {{
             readChar(nextByte) != ARRAY_END.marker
         }}
 
         //define loop step/increment
-        val step:() -> Unit = if(lengthIfSpecified != null) {{
+        val step:() -> Unit = if(count != null) {{
             index++
         }} else {{
             nextByte = shim.readOneByte()
