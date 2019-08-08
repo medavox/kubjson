@@ -157,7 +157,7 @@ class Reader(inputStream: InputStream) {
         val values:MutableMap<String, Any?> = mutableMapOf()
         val p = Printa("readObjectWithoutType")
         val (homogeneousType, count) = checkForContainerTypeAndOrCount()
-        var nextByte:Byte = shim.readOneByte()
+        var nextByte:Byte = shim.peekNextByte()
         count?.let { p.rintln("count: $it") }
         var index = 0
         //define end conditions
@@ -171,7 +171,7 @@ class Reader(inputStream: InputStream) {
         val step:() -> Unit = if(count != null) {{
             index++
         }} else {{
-            nextByte = shim.readOneByte()
+            nextByte = shim.peekNextByte()
         }}
         //loop through the array
         while(unfinished()) {
