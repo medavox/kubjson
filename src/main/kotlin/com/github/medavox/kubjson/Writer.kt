@@ -58,6 +58,9 @@ object Writer {
         val (type, content) = when(any) {
             //just write a null tag if the value is null; type info will just have to be omitted
             null -> TypeAndContent(writeNull(), byteArrayOf())
+            //since the string type is used more than the others (for object variable names),
+            //check it early to avoid having to go through all the other types
+            is String -> TypeAndContent(writeMarker(STRING_TYPE), writeString(any))
             is Boolean -> TypeAndContent(writeBoolean(any), byteArrayOf())//the boolean's type marker IS the content
             is Byte -> TypeAndContent(writeMarker(INT8_TYPE), writeInt8(any))
             is Short -> TypeAndContent(writeMarker(INT16_TYPE), writeInt16(any))
@@ -66,7 +69,6 @@ object Writer {
             is Float -> TypeAndContent(writeMarker(FLOAT32_TYPE), writeFloat32(any))
             is Double -> TypeAndContent(writeMarker(FLOAT64_TYPE), writeFloat64(any))
             is Char -> TypeAndContent(writeMarker(CHAR_TYPE), writeChar(any))
-            is String -> TypeAndContent(writeMarker(STRING_TYPE), writeString(any))
             is BigDecimal -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber(any))
             is BigInteger -> TypeAndContent(writeMarker(HIGH_PRECISION_NUMBER_TYPE), writeHighPrecisionNumber((any).toBigDecimal()))
             //fixme: vanilla array types aren't detected properly, and neither are subtypes of Any

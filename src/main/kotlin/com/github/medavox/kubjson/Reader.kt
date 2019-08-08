@@ -32,17 +32,8 @@ class Reader(inputStream: InputStream) {
     fun readAnything(typeChar: Char):Any? {
         return when(typeChar) {
             NULL_TYPE.marker -> null
-            TRUE_TYPE.marker -> true
-            FALSE_TYPE.marker -> false
-            NO_OP_TYPE.marker -> Unit //fixme: returning Unit implicitly casts to any
-            INT8_TYPE.marker -> readInt8(shim.readOneByte())
-            UINT8_TYPE.marker -> readUint8(shim.readOneByte())
-            INT16_TYPE.marker -> readInt16(shim.readBytes(2))
-            INT32_TYPE.marker -> readInt32(shim.readBytes(4))
-            INT64_TYPE.marker -> readInt64(shim.readBytes(8))
-            FLOAT32_TYPE.marker -> readFloat32(shim.readBytes(4))
-            FLOAT64_TYPE.marker -> readFloat64(shim.readBytes(8))
-            CHAR_TYPE.marker -> readChar(shim.readOneByte())
+            //since the string type is used more than the others (for object variable names),
+            //check it early to avoid having to go through all the other types
             STRING_TYPE.marker -> {
                 val strLength = readLength()
                 if (strLength < 0) {
@@ -55,6 +46,17 @@ class Reader(inputStream: InputStream) {
                 val nextBytes = shim.readBytes(strLength.toInt())
                 readString(nextBytes)
             }
+            TRUE_TYPE.marker -> true
+            FALSE_TYPE.marker -> false
+            NO_OP_TYPE.marker -> Unit //fixme: returning Unit implicitly casts to any
+            INT8_TYPE.marker -> readInt8(shim.readOneByte())
+            UINT8_TYPE.marker -> readUint8(shim.readOneByte())
+            INT16_TYPE.marker -> readInt16(shim.readBytes(2))
+            INT32_TYPE.marker -> readInt32(shim.readBytes(4))
+            INT64_TYPE.marker -> readInt64(shim.readBytes(8))
+            FLOAT32_TYPE.marker -> readFloat32(shim.readBytes(4))
+            FLOAT64_TYPE.marker -> readFloat64(shim.readBytes(8))
+            CHAR_TYPE.marker -> readChar(shim.readOneByte())
             HIGH_PRECISION_NUMBER_TYPE.marker -> {
                 val strLength = readLength()
                 if (strLength < 0) {
@@ -256,6 +258,9 @@ class Reader(inputStream: InputStream) {
         return when(homogeneousType) {
             //if we've already been told the type of all elements in this array, use that
             NULL_TYPE.marker -> values.toTypedArray()
+            //since the string type is used more than the others (for object variable names),
+            //check it early to avoid having to go through all the other types
+            STRING_TYPE.marker -> values.toTypedArray() as Array<String>
             TRUE_TYPE.marker, FALSE_TYPE.marker -> values.toTypedArray() as Array<Boolean>
             NO_OP_TYPE.marker -> values.toTypedArray() as Array<Unit> //fixme: returning Unit implicitly casts to any
             INT8_TYPE.marker -> values.toTypedArray() as Array<Byte>
@@ -266,7 +271,6 @@ class Reader(inputStream: InputStream) {
             FLOAT32_TYPE.marker -> values.toTypedArray() as Array<Float>
             FLOAT64_TYPE.marker -> values.toTypedArray() as Array<Double>
             CHAR_TYPE.marker -> values.toTypedArray() as Array<Char>
-            STRING_TYPE.marker -> values.toTypedArray() as Array<String>
             HIGH_PRECISION_NUMBER_TYPE.marker -> values.toTypedArray() as Array<BigDecimal>
             OBJECT_START.marker -> values.toTypedArray() as Array<Any>//non-null, because a red object is guaranteed to exist
             ARRAY_START.marker -> values.toTypedArray() as Array<Array<Any?>>//fixme
