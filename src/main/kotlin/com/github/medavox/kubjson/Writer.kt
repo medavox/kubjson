@@ -99,13 +99,47 @@ object Writer {
         val typesInArray:Set<KClass<*>?> = array.map { it?.javaClass?.kotlin}.toSet()
         val p = Printa("writeArray")
         //println("types in array: "+typesInArray)
+        //todo: handle non-primitive classes of different types as all being the same type: object
         val homogeneous = if(typesInArray.size > 1) {
             //if there is > 1 type in the whole array, use heterogeneous array syntax
             p.rintln("heterogeneous array detected")
             false
-        }else {
-            // otherwise, make a homogeneous array of that one type
-            outputBytes += writeMarkers(HOMOGENEOUS_CONTAINER_TYPE)
+        }else {//fixme: booleans which aren't all the same value aren't considered a homogeneous array by UBJSON,
+               // so don't handle them this way
+
+            // there's only one type in the whole array, so make a homogeneous array of that one type
+            //map the JVM class to one of UBJSON's types
+
+            //faffing around with only having a KClass<?> to work with is shit.
+            //since we already know that all the types are the same,
+            // just use an actual instance of this type from the array we're writing
+
+            //if every element's value is null, it's an array of nulls anyway
+            val actualType:Markers = when(array.firstOrNull{it != null}) {
+                null -> NULL_TYPE
+                is String -> STRING_TYPE
+                is Byte -> UINT8_TYPE
+                is Short -> INT16_TYPE
+                is Int -> INT32_TYPE
+                is Long -> INT64_TYPE
+                is Float -> FLOAT32_TYPE
+                is Double -> FLOAT64_TYPE
+                is Char -> CHAR_TYPE
+                is BigDecimal -> HIGH_PRECISION_NUMBER_TYPE
+                is BigInteger -> HIGH_PRECISION_NUMBER_TYPE
+
+                is BooleanArray,
+                is ByteArray,
+                is ShortArray,
+                is IntArray,
+                is LongArray,
+                is FloatArray,
+                is DoubleArray,
+                is CharArray,
+                is Array<*> -> ARRAY_START
+                else -> OBJECT_START
+            }
+            outputBytes += writeMarkers(HOMOGENEOUS_CONTAINER_TYPE, actualType)//actually write the type!
             p.rintln("homogeneous array type detected: "+typesInArray.first()?.simpleName)
             true
         }
