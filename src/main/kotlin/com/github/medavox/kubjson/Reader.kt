@@ -30,6 +30,7 @@ class Reader(inputStream: InputStream) {
     // how would you tell if onBoolean() was being called for a value in the current type,
     // or a type inside that type?
     fun readAnything(typeChar: Char):Any? {
+        //Printa("readAnything").rintln("typeChar passed:$typeChar")
         return when(typeChar) {
             NULL_TYPE.marker -> null
             //since the string type is used more than the others (for object variable names),
@@ -81,7 +82,7 @@ class Reader(inputStream: InputStream) {
     internal fun readLength():Long {
         val p = Printa("readLength")
         val oneByte = shim.readOneByte()
-        p.rintln("potential numberic type marker: "+oneByte)
+        //p.rintln("potential numeric type marker: $oneByte=${readChar(oneByte)}")
         return when(readChar(oneByte)) {
             INT8_TYPE.marker -> readInt8(shim.readOneByte()).toLong()
             INT16_TYPE.marker -> readInt16(shim.readBytes(2)).toLong()
@@ -96,10 +97,10 @@ class Reader(inputStream: InputStream) {
      *
      * Unlike the `read` methods for value types, we can't pass a ByteArray to this function,
      * because we don't know in advance how many bytes long the object is.
-     * In those cases finding out its length in bytes would amount to parsing it.
+     * In those cases finding out its count in bytes would amount to parsing it.
      *
-     * (Technically, we do know the byte-length of a homogeneous object with a length marker,
-     * whose elements are of a fixed-length type.
+     * (Technically, we do know the byte-count of a homogeneous object with a count marker,
+     * whose elements are of a fixed-count type.
      * But that is too specific a case to bother handling separately.) */
     internal fun <T:Any> readObject(toType: KClass<T>):T {
         val map:Map<String, Any?> = readObjectWithoutType()
@@ -223,9 +224,9 @@ class Reader(inputStream: InputStream) {
      *
      * Unlike the `read` methods for value types, we can't pass a ByteArray to this function,
      * because we don't know in advance how many bytes long the array is.
-     * In those cases finding out its length in bytes would amount to parsing it.
+     * In those cases finding out its count in bytes would amount to parsing it.
      *
-     * (Technically, we do know the byte-length of a homogeneous array with a length marker,
+     * (Technically, we do know the byte-count of a homogeneous array with a count marker,
      * whose elements are of a fixed-length type.
      * But that is too specific a case to bother handling separately.)*/
     fun readArray():Array<out Any?> {
@@ -292,12 +293,14 @@ class Reader(inputStream: InputStream) {
     }
 
     companion object {
-        /**Read the contents of the Int8 from the start of the passed [ByteArray], without a preceding type marker or length.*/
+        /**Read the contents of the Int8 from the start of the passed [ByteArray],
+         * without a preceding type marker or count.*/
         internal fun readInt8(b: Byte): Byte {
             return ByteBuffer.wrap(byteArrayOf(b)).order(ByteOrder.BIG_ENDIAN).get()
         }
 
-        /**Read the contents of the UInt8 in the start of the passed [ByteArray], without a preceding type marker or length.*/
+        /**Read the contents of the UInt8 in the start of the passed [ByteArray],
+         * without a preceding type marker or count.*/
         @UseExperimental(ExperimentalUnsignedTypes::class)
         internal fun readUint8(b: Byte): UByte {
             return readInt8(b).toUByte()
@@ -310,13 +313,13 @@ class Reader(inputStream: InputStream) {
         }
 
         /**Read the contents of the Int32 contained at the start of the passed [ByteArray] into a JVM Int(eger),
-         * without a preceding type marker or length.*/
+         * without a preceding type marker or count.*/
         internal fun readInt32(@Size(min = 4, max = 4) b: ByteArray): Int {
             return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getInt()
         }
 
         /**Read the contents of the Int64 contained at the start of the passed [ByteArray] into a JVM Long,
-         * without a preceding type marker or length.*/
+         * without a preceding type marker or count.*/
         internal fun readInt64(@Size(min = 8, max = 8) b: ByteArray): Long {
             return ByteBuffer.wrap(b).order(ByteOrder.BIG_ENDIAN).getLong()
         }
@@ -334,7 +337,7 @@ class Reader(inputStream: InputStream) {
         }
 
         /**Read the value of a UBJSON UTF-8 encoded string into a JVM UTF-16 String
-         * @param b a [ByteArray] containing just the content of the string -- no type marker or length field*/
+         * @param b a [ByteArray] containing just the content of the string -- no type marker or count field*/
         internal fun readString(b: ByteArray): String {
             return b.toString(Charsets.UTF_8)
         }
