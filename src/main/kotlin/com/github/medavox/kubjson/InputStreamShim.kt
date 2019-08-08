@@ -21,7 +21,7 @@ class InputStreamShim(private val inputStream: InputStream) {
         if(bytesReadIncludingPeeked != numBytesToRead) {
             System.err.println("unable to read requested number of bytes $numBytesToRead from input stream: " +
                     "not enough bytes left in input stream, only read $bytesActuallyRead bytes")
-            throw InsufficientBytesReadException(numBytesToRead, bytesActuallyRead)
+            throw InsufficientBytesReadException(numBytesToRead, bytesActuallyRead, bytesReadSoFar)
         }
         //return the read array, plus the peeked byte stuck on the front (if it's not null)
         return if(peeked != null) {
