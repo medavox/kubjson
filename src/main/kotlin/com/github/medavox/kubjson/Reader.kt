@@ -175,8 +175,8 @@ class Reader(inputStream: InputStream) {
         }}
         //loop through the array
         while(unfinished()) {
-            val name:String = readAny(STRING_TYPE.marker) as String
-            val data = readAny(homogeneousType ?: readChar(nextByte))
+            val name:String = readAnything(STRING_TYPE.marker) as String
+            val data = readAnything(homogeneousType ?: readChar(shim.readOneByte()))
             p.rintln("adding: {$name | $data}")
             values.put(name, data)
             step()
