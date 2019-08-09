@@ -157,29 +157,14 @@ class Reader(inputStream: InputStream) {
         val values:MutableMap<String, Any?> = mutableMapOf()
         val p = Printa("readObjectWithoutType")
         val (homogeneousType, count) = checkForContainerTypeAndOrCount()
-        var nextByte:Byte = shim.peekNextByte()
-        count?.let { p.rintln("count: $it") }
-        var index = 0
-        //define end conditions
-        val unfinished:() -> Boolean = if(count != null) {{
-            index < count
-        }}else {{
-            readChar(nextByte) != OBJECT_END.marker
-        }}
-
-        //define loop step/increment
-        val step:() -> Unit = if(count != null) {{
-            index++
-        }} else {{
-            nextByte = shim.peekNextByte()
-        }}
+        val looper = CountDependentIterator(OBJECT_END, count)
         //loop through the array
-        while(unfinished()) {
+        while(looper.unfinished()) {
             val name:String = readAnything(STRING_TYPE.marker) as String
             val data = readAnything(homogeneousType ?: readChar(shim.readOneByte()))
             p.rintln("adding: {$name | $data}")
             values.put(name, data)
-            step()
+            looper.step()
         }
         return values
     }
@@ -225,6 +210,25 @@ class Reader(inputStream: InputStream) {
         return ContainerTypeAndOrCount(homogeneousType, countIfSpecified)
     }
 
+    private inner class CountDependentIterator(containerEnd:Markers, count:Long?=null) {
+        private var nextByte:Byte = shim.peekNextByte()
+        //count?.let { p.rintln("count: $it") }
+        private var index = 0
+        //define end conditions
+        val unfinished:() -> Boolean = if(count != null) {{
+            index < count
+        }}else {{
+            readChar(nextByte) != containerEnd.marker
+        }}
+
+        //define loop step/increment
+        val step:() -> Unit = if(count != null) {{
+            index++
+        }} else {{
+            nextByte = shim.peekNextByte()
+        }}
+    }
+
     data class ArrayWithType(val array:Array<Any?>, val type:KClass<out Any>)
 
     /**Reads an arbitrary number of bytes from the passed [InputStream], until the array is parsed or an error occurs.
@@ -240,27 +244,13 @@ class Reader(inputStream: InputStream) {
         val values:MutableList<Any?> = mutableListOf()
 
         val (homogeneousType, count) = checkForContainerTypeAndOrCount()
-        var nextByte:Byte = shim.readOneByte()
+        val looper = CountDependentIterator(ARRAY_END, count)
 
-        var index = 0
-        //define end conditions
-        val unfinished:() -> Boolean = if(count != null) {{
-            index < count
-        }}else {{
-            readChar(nextByte) != ARRAY_END.marker
-        }}
-
-        //define loop step/increment
-        val step:() -> Unit = if(count != null) {{
-            index++
-        }} else {{
-            nextByte = shim.readOneByte()
-        }}
         //loop through the array
-        while(unfinished()) {
-            val data = readAnything(homogeneousType ?: readChar(nextByte))
+        while(looper.unfinished()) {
+            val data = readAnything(homogeneousType ?: readChar(shim.readOneByte()))
             values.add(data)
-            step()
+            looper.step()
         }
         //cast array to a more specific type
         return when(homogeneousType) {
@@ -294,7 +284,7 @@ class Reader(inputStream: InputStream) {
                 }
                 values.toTypedArray()
             }
-            else -> throw UbjsonParseException("unexpected char/byte in type marker: $nextByte/${readChar(nextByte)}",
+            else -> throw UbjsonParseException("unexpected char/byte in type marker: $homogeneousType",
                 shim.bytesReadSoFar)
         }
     }
