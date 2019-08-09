@@ -39,14 +39,18 @@ class InputStreamShim(private val inputStream: InputStream) {
      * they all return the same byte.
      *
      * @return the next byte in the input stream*/
+    // peeking by calling readOneByte still actually adds that byte to the bytesReadSoFar;
+    //so just do the read manually
     fun peekNextByte():Byte {
         val peekyBefore = peekedByte
-        if(peekyBefore == null) {
-            val peekyByter = readOneByte()
+        return if(peekyBefore == null) {
+            val oneByte = ByteArray(1)
+            inputStream.read(oneByte)
+            val peekyByter = oneByte[0]
             peekedByte = peekyByter
-            return peekyByter
+            peekyByter
         }else {
-            return peekyBefore
+            peekyBefore
         }
     }
 
