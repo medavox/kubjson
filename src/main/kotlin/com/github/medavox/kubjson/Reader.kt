@@ -128,7 +128,8 @@ class Reader(inputStream: InputStream) {
                     //or can be cast to the correct type
                     val paramClass:KClassifier? = param.type.classifier
                     val candidate = map.get(param.name)
-                    val mapClass:KClassifier? = if(candidate != null){candidate::class}else{null}
+                    //if they're all null, whatever
+                    val mapClass:KClassifier? = if(candidate != null) candidate::class else null
                     val areEqual:Boolean = paramClass == mapClass
                     p.rintln("parameter classifier: $paramClass")
                     p.rintln("map entry classifier: $mapClass")
@@ -229,8 +230,6 @@ class Reader(inputStream: InputStream) {
         }}
     }
 
-    data class ArrayWithType(val array:Array<Any?>, val type:KClass<out Any>)
-
     /**Reads an arbitrary number of bytes from the passed [InputStream], until the array is parsed or an error occurs.
      *
      * Unlike the `read` methods for value types, we can't pass a ByteArray to this function,
@@ -262,7 +261,7 @@ class Reader(inputStream: InputStream) {
             TRUE_TYPE.marker, FALSE_TYPE.marker -> values.map{it as Boolean}.toTypedArray()
             NO_OP_TYPE.marker -> values.map{it as Unit}.toTypedArray()
             INT8_TYPE.marker -> values.map{it as Byte}.toTypedArray()
-            UINT8_TYPE.marker -> values.map{ readUint8(it as Byte)}.toTypedArray()//fixme:choose a type
+            UINT8_TYPE.marker -> values.map{ readUint8(it as Byte)}.toTypedArray()
             INT16_TYPE.marker -> values.map{it as Short}.toTypedArray()
             INT32_TYPE.marker -> values.map{it as Int}.toTypedArray()
             INT64_TYPE.marker -> values.map{it as Long}.toTypedArray()
