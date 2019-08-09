@@ -253,25 +253,25 @@ class Reader(inputStream: InputStream) {
             looper.step()
         }
         //cast array to a more specific type
+        //if we've already been told the type of all elements in this array, use that
         return when(homogeneousType) {
-            //if we've already been told the type of all elements in this array, use that
-            NULL_TYPE.marker -> values.toTypedArray()
+            NULL_TYPE.marker -> arrayOfNulls(values.size)
             //since the string type is used more than the others (for object variable names),
             //check it early to avoid having to go through all the other types
-            STRING_TYPE.marker -> values.toTypedArray() as Array<String>
-            TRUE_TYPE.marker, FALSE_TYPE.marker -> values.toTypedArray() as Array<Boolean>
-            NO_OP_TYPE.marker -> values.toTypedArray() as Array<Unit> //fixme: returning Unit implicitly casts to any
-            INT8_TYPE.marker -> values.toTypedArray() as Array<Byte>
-            UINT8_TYPE.marker -> values.toTypedArray()//fixme:choose a type
-            INT16_TYPE.marker -> values.toTypedArray() as Array<Short>
-            INT32_TYPE.marker -> values.toTypedArray() as Array<Int>
-            INT64_TYPE.marker -> values.toTypedArray() as Array<Long>
-            FLOAT32_TYPE.marker -> values.toTypedArray() as Array<Float>
-            FLOAT64_TYPE.marker -> values.toTypedArray() as Array<Double>
-            CHAR_TYPE.marker -> values.toTypedArray() as Array<Char>
-            HIGH_PRECISION_NUMBER_TYPE.marker -> values.toTypedArray() as Array<BigDecimal>
-            OBJECT_START.marker -> values.toTypedArray() as Array<Any>//non-null, because a red object is guaranteed to exist
-            ARRAY_START.marker -> values.toTypedArray() as Array<Array<Any?>>//fixme
+            STRING_TYPE.marker -> values.map{it as String}.toTypedArray()
+            TRUE_TYPE.marker, FALSE_TYPE.marker -> values.map{it as Boolean}.toTypedArray()
+            NO_OP_TYPE.marker -> values.map{it as Unit}.toTypedArray()
+            INT8_TYPE.marker -> values.map{it as Byte}.toTypedArray()
+            UINT8_TYPE.marker -> values.map{ readUint8(it as Byte)}.toTypedArray()//fixme:choose a type
+            INT16_TYPE.marker -> values.map{it as Short}.toTypedArray()
+            INT32_TYPE.marker -> values.map{it as Int}.toTypedArray()
+            INT64_TYPE.marker -> values.map{it as Long}.toTypedArray()
+            FLOAT32_TYPE.marker -> values.map{it as Float}.toTypedArray()
+            FLOAT64_TYPE.marker -> values.map{it as Double}.toTypedArray()
+            CHAR_TYPE.marker -> values.map{it as Char}.toTypedArray()
+            HIGH_PRECISION_NUMBER_TYPE.marker -> values.map{it as BigDecimal}.toTypedArray()
+            OBJECT_START.marker -> values.map{it as Any}.toTypedArray()//non-null, because a read object is guaranteed to exist
+            ARRAY_START.marker -> values.map{it as Array<Any?>}.toTypedArray()
             null -> {
                 //there is no homogeneous type marker, so
                 //manually find most specific common ancestor of all the types found in the array, and return it as that
