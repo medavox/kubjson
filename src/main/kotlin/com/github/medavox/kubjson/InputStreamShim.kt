@@ -3,12 +3,12 @@ package com.github.medavox.kubjson
 import java.io.InputStream
 
 /**Provides 1. a more convenient API for reading [ByteArray]s from an [InputStream], and
- * 2. the ability to peek at the next byte in the input, without removing it from the next read() call.
+ * 2. the ability to peek at the next byte in the input,
+ * without excluding it from the returned ByteArray of the next read() call.
  * @constructor Construct a new instance
  * @param inputStream */
 class InputStreamShim(private val inputStream: InputStream) {
     private var peekedByte:Byte? = null
-    //todo: keep track of bytes read In This Class, instead of in the Reader
     var bytesReadSoFar:Long = 0L
         private set
     @Throws(InsufficientBytesReadException::class)
@@ -54,6 +54,7 @@ class InputStreamShim(private val inputStream: InputStream) {
         }
     }
 
+    /**Convenience method which returns a single byte.*/
     fun readOneByte():Byte {
         return readBytes(1)[0]
     }
