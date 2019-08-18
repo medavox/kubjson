@@ -5,10 +5,9 @@ import java.io.InputStream
 import java.math.BigDecimal
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.*
 import javax.validation.constraints.Size
-import kotlin.reflect.KClass
-import kotlin.reflect.KClassifier
-import kotlin.reflect.KParameter
+import kotlin.reflect.*
 
 class Reader(inputStream: InputStream) {
     private val shim = InputStreamShim(inputStream)
@@ -108,48 +107,57 @@ class Reader(inputStream: InputStream) {
         p.rintln("map:")
         map.forEach { p.rintln(it) }
         //option a: manually set each of the instance's properties with elements from the map,
-        //whose name and type match
-        p.rintln("constructors:")
-        for(constr in toType.constructors) {
-            val params:String = constr.parameters.fold("", {acc:String, param:KParameter ->
-                //if(param.isOptional){""}else{
+        //whose name and type match NAH
+
+        fun <R> KFunction<R>.asString():String {
+            val params:String = parameters.fold("") { acc:String, param:KParameter ->
                 val typ = param.type.toString()
                 val classString=if(typ.startsWith("kotlin.")) typ.substring(7) else typ
-                acc+", "+if(param.isVararg){"vararg "}else{""}+"${param.name}:$classString"})
+                acc+", "+if(param.isVararg){"vararg "}else{""}+"${param.name}:$classString"}
                 .substring(2)
-            p.rintln("fun <init>($params): ${constr.returnType}")
+            return "fun <init>($params): $returnType"
         }
 
         //option B: find a constructor whose name/type pairs all match entries in the map
-        construc@ for(constructor in toType.constructors) {
-            for(param in constructor.parameters) {
-                if(map.containsKey(param.name)) {
-                    //check it's the correct type,
-                    //or can be cast to the correct type
-                    val paramClass:KClassifier? = param.type.classifier
-                    val candidate = map.get(param.name)
-                    //if they're all null, whatever
-                    val mapClass:KClassifier? = if(candidate != null) candidate::class else null
-                    val areEqual:Boolean = paramClass == mapClass
-                    p.rintln("parameter classifier: $paramClass")
-                    p.rintln("map entry classifier: $mapClass")
-                    p.rintln("types are equal: $areEqual")
-                }else {
-                    p.rintln("map doesn't contain a param named \"${param.name}\" for this constructor, moving on...")
-                    //if the map contains no entry with this parameter's name,
-                    //then that disqualifies this constructor,
-                    //so move on to the next constructor, if any
-                    continue@construc
+        val constructorToUse: KFunction<T> =
+            toType.constructors.firstOrNull{ construc -> construc.parameters.all { param ->
+                val mapClass = map[param.name]?.javaClass?.kotlin
+                if(param.type.classifier != mapClass) {
+                    p.rintln("with constructor  ${construc.asString()}:")
+                    p.rintln("param \'${param.name}\' classifier:" + param.type.classifier+
+                            "doesn't match value classifier: $mapClass\n")
                 }
-            }
+                param.isOptional || map.containsKey(param.name) &&
+                        (param.type.classifier == mapClass || mapClass?.supertypes?.any { it == param.type } ?: false)
+            }} ?: throw IllegalArgumentException("no constructor could be satisfied for class \'$toType\'. " +
+            //throw an exception if no constructor could be satisfied (given the names & types of the variables we got)
+            //which creates an instance of this class
+                    map.asSequence().fold("UBJSON properties given:") {acc, entry ->
+                        acc+"\n\t${entry.key} = "+if(entry.value is Array<*>) {Arrays.toString(entry.value as Array<*>)
+                        } else entry.value}+ "\n\n"+
+                    toType.constructors.fold("available constructors:") { acc, constr ->
+                        acc+"\n\t${constr.asString()}"
+                    }
+            )
+
+        val constructorParams:Map<KParameter, Any> = constructorToUse.parameters.filter{!it.isOptional}.
+            associateWith { param:KParameter ->
+            map.asSequence().firstOrNull { entry:Map.Entry<String, Any?> ->
+                val valueClass = entry.value?.javaClass?.kotlin
+                entry.key == param.name && (param.type.classifier == valueClass ||
+                        valueClass?.supertypes?.any{it == param.type} ?: false)
+            }?.value ?: throw IllegalArgumentException("UBJSON properties given didn't match constructor " +
+                    "\'${constructorToUse.asString()}\'. "+map.asSequence().fold("UBJSON properties given:") {acc, entry ->
+                acc+"\n\t${entry.key} = "+if(entry.value is Array<*>) {Arrays.toString(entry.value as Array<*>)
+                } else entry.value})
         }
 
-        //throw an exception if no constructor could be satisfied (given the names & types of the variables we got)
-        //which creates an instance of this class
-        //Don't check static methods, companion object's functions,
+        val g:T = constructorToUse.callBy(constructorParams)
+        return g
+
+        //Don't check static methods or companion object's functions,
         //because they might not return an instance containing this data, but rather some compile-time constant,
         //like BigDecimal.ONE
-        TODO()
     }
 
     /** an arbitrary number of bytes from the passed [InputStream], until an object is parsed or an error occurs.
@@ -163,12 +171,15 @@ class Reader(inputStream: InputStream) {
         while(looper.unfinished()) {
             val name:String = readAnything(STRING_TYPE.marker) as String
             val data = readAnything(homogeneousType ?: readChar(shim.readOneByte()))
-            p.rintln("adding: {$name | $data}")
+            //p.rintln("adding: {$name | $data}")
             values.put(name, data)
             looper.step()
         }
         return values
     }
+
+    //can't make a function castTo(any:Any?, marker:Markers).
+    //what would the return type be?
 
     private data class ContainerTypeAndOrCount(val homogeneousType:Char?, val count:Long?)
     private fun checkForContainerTypeAndOrCount():ContainerTypeAndOrCount {
