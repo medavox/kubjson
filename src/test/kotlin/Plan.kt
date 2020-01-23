@@ -1,8 +1,10 @@
 /*Each type conversion should have a pair: the Java version,
 and the expected byte array it converts to/from
 
-read function tests will be fed the byte array, and be expected to equal the java version.
-write function tests will be fed the java version, and be expected to equal the byte array.
+read function tests will be fed the byte array,
+    and the output will be expected to equal the java version.
+write function tests will be fed the java version,
+    and the output will be expected to equal the byte array.
 
 failing writing these by hand, codec tests would be a start
 
