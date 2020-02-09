@@ -104,8 +104,8 @@ class Reader(inputStream: InputStream) {
     internal fun <T:Any> readObject(toType: KClass<T>):T {
         val map:Map<String, Any?> = readObjectWithoutType()
         val p = Printa("readObject")
-        p.rintln("map:")
-        map.forEach { p.rintln(it) }
+        //p.rintln("map:")
+        //map.forEach { p.rintln(it) }
         //option a: manually set each of the instance's properties with elements from the map,
         //whose name and type match NAH
 
